@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecuExam — Receiver Dashboard</title>
+    <link rel="stylesheet" href="/secuexam_app/css/style.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="/receiver">
+            <div class="logo-icon">🔐</div>
+            <span class="gradient-text">SecuExam</span>
+        </a>
+        <div class="navbar-user">
+            <div class="user-info">
+                <div class="user-name" id="nav-user-name">Receiver</div>
+                <div class="user-role">EXAM CENTER</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <!-- Page Header -->
+        <div class="page-header slide-up">
+            <h1>📥 Exam Center Dashboard</h1>
+            <p class="page-desc">View scheduled exams and download papers when the time-lock permits</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid-4 stagger" style="margin-bottom: 2rem;">
+            <div class="glass-card stat-card accent">
+                <div class="stat-icon">📋</div>
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">Total Exams</div>
+            </div>
+            <div class="glass-card stat-card success">
+                <div class="stat-icon">🔓</div>
+                <div class="stat-value" id="stat-unlocked">0</div>
+                <div class="stat-label">Unlocked</div>
+            </div>
+            <div class="glass-card stat-card warning">
+                <div class="stat-icon">🔒</div>
+                <div class="stat-value" id="stat-locked">0</div>
+                <div class="stat-label">Time-Locked</div>
+            </div>
+            <div class="glass-card stat-card danger">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-value" id="stat-expired">0</div>
+                <div class="stat-label">Expired</div>
+            </div>
+        </div>
+
+        <!-- Security Info Banner -->
+        <div class="glass-card" style="border-left: 3px solid var(--accent-primary); margin-bottom: 2rem; display: flex; gap: 1rem; align-items: center;">
+            <div style="font-size: 2rem;">🛡️</div>
+            <div>
+                <h3 style="font-size: 0.95rem;">Security Notice</h3>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">
+                    All downloaded papers are <strong>watermarked</strong> with your IP address, name, and download timestamp. 
+                    Papers are only accessible within the <strong>time-lock window</strong> (30 minutes before exam start). 
+                    Every download attempt is <strong>logged</strong> for audit purposes.
+                </p>
+            </div>
+        </div>
+
+        <!-- Exam Papers List -->
+        <div class="glass-card">
+            <div class="section-header">
+                <h2>📝 Scheduled Exams</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadPapers()">🔄 Refresh</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Setter</th>
+                            <th>Size</th>
+                            <th>Exam Time</th>
+                            <th>Time Until Unlock</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exams-table-body">
+                        <tr><td colspan="7" class="empty-state"><div class="empty-icon">📋</div><h3>No exams scheduled</h3></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Download Result Modal -->
+        <div id="download-modal" class="modal-overlay" style="display: none;">
+            <div class="glass-card modal">
+                <div class="modal-header">
+                    <h2 id="download-modal-title">Download Status</h2>
+                    <button class="modal-close" onclick="closeDownloadModal()">&times;</button>
+                </div>
+                <div id="download-modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/secuexam_app/js/app.js"></script>
+    <script>
+        let currentUser = null;
+        let refreshInFlight = false;
+
+        async function init() {
+            currentUser = await checkAuth('receiver');
+            if (!currentUser) return;
+            document.getElementById('nav-user-name').textContent = currentUser.name;
+            loadPapers();
+            // Refresh countdowns every second
+            setInterval(updateCountdowns, 1000);
+        }
+
+        async function loadPapers() {
+            try {
+                const data = await apiFetch('/api/papers');
+                const papers = data.papers;
+                
+                // Stats
+                document.getElementById('stat-total').textContent = papers.length;
+                document.getElementById('stat-unlocked').textContent = papers.filter(p => p.is_unlocked && !p.is_expired).length;
+                document.getElementById('stat-locked').textContent = papers.filter(p => !p.is_unlocked && !p.is_expired).length;
+                document.getElementById('stat-expired').textContent = papers.filter(p => p.is_expired).length;
+
+                const tbody = document.getElementById('exams-table-body');
+                if (papers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-icon">📋</div><h3>No exams scheduled</h3></td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = papers.map(p => `
+                    <tr>
+                        <td><strong>${escapeHtml(p.subject)}</strong></td>
+                        <td>${escapeHtml(p.setter_name)}</td>
+                        <td>${formatFileSize(p.file_size_mb)}</td>
+                        <td>${formatDateTime(p.exam_start_time)}</td>
+                        <td class="countdown-cell" data-unlock="${p.unlock_time}" data-expiry="${new Date(new Date(p.exam_start_time).getTime() + (p.duration_min * 60000)).toISOString()}" data-state="${p.is_unlocked ? 'unlocked' : (p.is_expired ? 'expired' : 'locked')}">${renderCountdown(p.unlock_time)}</td>
+                        <td>
+                            ${p.is_unlocked && !p.is_expired ? '<span class="badge badge-success">🔓 Available</span>' : 
+                              p.is_expired ? '<span class="badge badge-warning">⏳ Expired</span>' : 
+                              '<span class="lock-status locked">🔒 Locked</span>'}
+                        </td>
+                        <td>
+                            ${p.is_unlocked && !p.is_expired ? 
+                                `<button class="btn btn-primary btn-sm" onclick="downloadPaper('${p.paper_id}', '${escapeHtml(p.subject)}')">📥 Download</button>` : 
+                              p.is_expired ? 
+                                `<button class="btn btn-secondary btn-sm" disabled>Expired</button>` :
+                                `<button class="btn btn-secondary btn-sm" disabled>🔒 Locked</button>`}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) { /* handled by apiFetch */ }
+        }
+
+        function updateCountdowns() {
+            let shouldReload = false;
+            document.querySelectorAll('.countdown-cell').forEach(cell => {
+                const unlock = cell.getAttribute('data-unlock');
+                const expiry = cell.getAttribute('data-expiry');
+                const prevState = cell.getAttribute('data-state');
+                const now = new Date();
+                const unlockReached = getCountdown(unlock).total <= 0;
+                const expiryReached = expiry ? now >= new Date(expiry) : false;
+                const nextState = expiryReached ? 'expired' : (unlockReached ? 'unlocked' : 'locked');
+                if (prevState !== nextState) {
+                    shouldReload = true;
+                    cell.setAttribute('data-state', nextState);
+                }
+                cell.innerHTML = renderCountdown(unlock);
+            });
+            if (shouldReload && !refreshInFlight) {
+                refreshInFlight = true;
+                loadPapers().finally(() => { refreshInFlight = false; });
+            }
+        }
+
+        async function downloadPaper(paperId, subject) {
+            showToast('Initiating secure download...', 'info');
+            try {
+                const res = await fetch(`/api/papers/${paperId}/download`);
+                
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `SECUEXAM_${subject.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    
+                    showToast('Paper downloaded with watermark!', 'success');
+                    document.getElementById('download-modal-title').textContent = '✅ Download Complete';
+                    document.getElementById('download-modal-body').innerHTML = `
+                        <div style="text-align: center; padding: 1rem;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                            <h3 style="margin-bottom: 0.5rem;">Paper Downloaded Successfully</h3>
+                            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Subject: <strong>${escapeHtml(subject)}</strong></p>
+                            <div class="glass-card" style="text-align: left; padding: 1rem; margin-bottom: 1rem;">
+                                <h4 style="font-size: 0.8rem; color: var(--warning); margin-bottom: 0.5rem;">⚠️ Watermark Applied</h4>
+                                <p style="font-size: 0.75rem; color: var(--text-muted);">
+                                    This document has been watermarked with your IP address, user identity, and download timestamp. 
+                                    Any unauthorized distribution can be traced back to this download.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('download-modal').style.display = 'flex';
+                } else {
+                    const data = await res.json();
+                    if (res.status === 403 && data.remaining_seconds) {
+                        showToast(`Time-lock active! Paper unlocks at ${formatDateTime(data.unlock_time)}`, 'warning');
+                    } else {
+                        showToast(data.error || 'Download failed', 'error');
+                    }
+                }
+            } catch (err) {
+                showToast('Download error: ' + err.message, 'error');
+            }
+        }
+
+        function closeDownloadModal() {
+            document.getElementById('download-modal').style.display = 'none';
+        }
+
+        init();
+    </script>
+</body>
+</html>

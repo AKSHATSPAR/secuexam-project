@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+secuexam.db
+test_screenshots/
+secuexam_app/uploads/
+report_assets/generated/
