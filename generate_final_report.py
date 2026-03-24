@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Iterable
 
 from PIL import Image as PILImage
-from PIL import ImageDraw, ImageFont
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -21,12 +20,15 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
+    CondPageBreak,
     Frame,
     HRFlowable,
     Image,
+    KeepTogether,
     PageBreak,
     PageTemplate,
     Paragraph,
+    Preformatted,
     Spacer,
     Table,
     TableStyle,
@@ -39,14 +41,15 @@ OUTPUT_PDF = BASE_DIR / "SecuExam_Final_Project_Report.pdf"
 ASSET_DIR = BASE_DIR / "report_assets"
 GENERATED_DIR = ASSET_DIR / "generated"
 SCREENSHOT_DIR = BASE_DIR / "test_screenshots"
+MANUAL_SCREENSHOT_DIR = ASSET_DIR / "manual_code_screenshots"
 
 VIT_LOGO = ASSET_DIR / "vit_extract-000.png"
+REPO_URL = "https://github.com/AKSHATSPAR/secuexam-project"
 
 TIMES_REGULAR = "/System/Library/Fonts/Supplemental/Times New Roman.ttf"
 TIMES_BOLD = "/System/Library/Fonts/Supplemental/Times New Roman Bold.ttf"
 TIMES_ITALIC = "/System/Library/Fonts/Supplemental/Times New Roman Italic.ttf"
 COURIER_NEW = "/System/Library/Fonts/Supplemental/Courier New.ttf"
-COURIER_NEW_BOLD = "/System/Library/Fonts/Supplemental/Courier New Bold.ttf"
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
 
@@ -55,17 +58,6 @@ PAGE_WIDTH, PAGE_HEIGHT = A4
 class DiagramPage:
     pdf_name: str
     page_number: int
-    caption: str
-
-
-@dataclass(frozen=True)
-class CodeScreenshotSpec:
-    output_name: str
-    title: str
-    file_path: Path
-    start_marker: str
-    end_marker: str
-    screenshot_suffix: str
     caption: str
 
 
@@ -104,44 +96,28 @@ SCREENSHOT_SUFFIXES = [
     ("_24_admin_papers_tab.png", "Admin paper registry"),
 ]
 
+UML_DESCRIPTIONS = [
+    ("WBS", "The Work Breakdown Structure decomposes SecuExam into planning, implementation, testing, and deployment activities. It shows that security features such as encryption, time-locking, and auditability were treated as first-class development tasks rather than add-ons."),
+    ("Activity Diagram", "The activity diagram captures the operational flow for paper upload and secure retrieval. It shows how validation, encryption, scheduling, time checks, decryption, watermarking, and download are sequenced inside the application."),
+    ("ER Diagram", "The ER diagram defines the persistent structure used by SecuExam. It models users, papers, schedules, key fragments, and download logs, which directly correspond to the implemented SQLite schema."),
+    ("RE Model", "The requirements engineering model organizes the project from problem identification through elicitation, specification, validation, and management. It explains how the SecuExam scope was derived and controlled across the project lifecycle."),
+    ("State Diagram", "The state diagram represents the paper lifecycle from uploaded to encrypted to time-locked and finally retrievable. It also reflects blocked paths such as early download attempts and expiry after the exam window."),
+    ("Class Diagram", "The class diagram describes the logical object structure of the system, including user roles, papers, schedules, download requests, and logs. It is the design-level representation of the current implementation model."),
+    ("DFD", "The data-flow diagrams show how information moves through authentication, upload, download, and admin modules. They make explicit where the system checks permissions, schedules, keys, and logs during each transaction."),
+    ("Use Case Diagram", "The use-case diagram maps the responsibilities of the paper setter, receiver, and administrator. It shows which actions are available to each role and what internal security actions are triggered as part of those use cases."),
+    ("UI / UX Design", "The UI / UX design page documents the intended flow of each dashboard and the minimal interaction model used by SecuExam. It explains why the interface remains focused on clarity and operational safety."),
+    ("Component Diagram", "The component diagram explains how frontend pages, backend services, security functions, database access, and storage work together. It shows the implemented system as a set of cooperating modules rather than one undifferentiated block."),
+    ("Package Diagram", "The package diagram organizes the project into presentation, application, domain, security, and infrastructure concerns. This reflects the way the final codebase separates user interface code from backend and security logic."),
+    ("Deployment Diagram", "The deployment diagram describes the runtime placement of the browser client, Flask backend, database, and encrypted storage. It also highlights the importance of trusted server time for time-lock enforcement."),
+    ("Sequence Diagram", "The sequence diagram explains the most security-critical interaction in the system: receiver download. It shows request validation, time-lock check, key reconstruction, decryption, watermarking, log creation, and file delivery in order."),
+]
 
-CODE_SCREENSHOT_SPECS = [
-    CodeScreenshotSpec(
-        output_name="code_auth_login.png",
-        title="server.py + Login Page",
-        file_path=BASE_DIR / "server.py",
-        start_marker='@app.route("/api/login", methods=["POST"])',
-        end_marker='@app.route("/api/logout", methods=["POST"])',
-        screenshot_suffix="_01_login_page_load.png",
-        caption="Code screenshot showing backend authentication logic with the developed login interface.",
-    ),
-    CodeScreenshotSpec(
-        output_name="code_setter_upload.png",
-        title="setter.html + Upload Result",
-        file_path=BASE_DIR / "secuexam_app" / "setter.html",
-        start_marker="async function handleUpload(e)",
-        end_marker="async function loadPapers()",
-        screenshot_suffix="_12_upload_encryption_result.png",
-        caption="Code screenshot showing the setter upload workflow beside the live encryption result screen.",
-    ),
-    CodeScreenshotSpec(
-        output_name="code_receiver_download.png",
-        title="receiver.html + Receiver Dashboard",
-        file_path=BASE_DIR / "secuexam_app" / "receiver.html",
-        start_marker="async function loadPapers()",
-        end_marker="function closeDownloadModal()",
-        screenshot_suffix="_16_time_lock_status.png",
-        caption="Code screenshot showing receiver-side paper listing and time-lock UI behavior.",
-    ),
-    CodeScreenshotSpec(
-        output_name="code_admin_tests.png",
-        title="test_secuexam.py + Admin Dashboard",
-        file_path=BASE_DIR / "test_secuexam.py",
-        start_marker="class Test04_AdminDashboard(SecuExamTestBase):",
-        end_marker="class Test05_UIConsistency(SecuExamTestBase):",
-        screenshot_suffix="_19_admin_dashboard.png",
-        caption="Code screenshot showing automated admin validation logic beside the admin control center UI.",
-    ),
+
+MANUAL_SCREENSHOT_SPECS = [
+    ("manual_code_login.png", "Open `/Users/akshat/SOFTWARE_COURSE_BASED PROJECT/server.py` in VS Code on the left at the `/api/login` function, and keep the SecuExam login page open on the right."),
+    ("manual_code_setter.png", "Open `/Users/akshat/SOFTWARE_COURSE_BASED PROJECT/secuexam_app/setter.html` in VS Code on the left at `handleUpload`, and keep the successful setter upload result screen open on the right."),
+    ("manual_code_receiver.png", "Open `/Users/akshat/SOFTWARE_COURSE_BASED PROJECT/secuexam_app/receiver.html` in VS Code on the left at `loadPapers`, and keep the receiver dashboard/time-lock screen open on the right."),
+    ("manual_code_admin.png", "Open `/Users/akshat/SOFTWARE_COURSE_BASED PROJECT/test_secuexam.py` in VS Code on the left at `class Test04_AdminDashboard`, and keep the admin dashboard open on the right."),
 ]
 
 
@@ -219,7 +195,7 @@ def build_styles() -> dict[str, ParagraphStyle]:
             fontName="TimesNewRoman-Italic",
             fontSize=12,
             leading=18,
-            alignment=TA_CENTER,
+            alignment=TA_JUSTIFY,
             spaceAfter=6,
         ),
         "toc_entry": ParagraphStyle(
@@ -293,6 +269,16 @@ def sub_heading(text: str) -> Paragraph:
 
 def spacer(height: float = 0.25) -> Spacer:
     return Spacer(1, height * cm)
+
+
+def append_main_heading(story: list, text: str) -> None:
+    story.append(CondPageBreak(4 * cm))
+    story.append(main_heading(text))
+
+
+def append_sub_heading(story: list, text: str) -> None:
+    story.append(CondPageBreak(3.5 * cm))
+    story.append(sub_heading(text))
 
 
 def latest_screenshot(suffix: str) -> Path:
@@ -375,65 +361,28 @@ def extract_code_snippet(path: Path, start_marker: str, end_marker: str, max_lin
     return cleaned[:max_lines]
 
 
-def build_code_ui_screenshot(spec: CodeScreenshotSpec) -> Path:
-    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = GENERATED_DIR / spec.output_name
-    if output_path.exists():
-        return output_path
-
-    code_lines = extract_code_snippet(spec.file_path, spec.start_marker, spec.end_marker)
-    ui_path = latest_screenshot(spec.screenshot_suffix)
-    ui_image = PILImage.open(ui_path).convert("RGB")
-
-    canvas_width = 1800
-    canvas_height = 980
-    left_width = 980
-    right_width = canvas_width - left_width
-
-    canvas = PILImage.new("RGB", (canvas_width, canvas_height), "#f4f6fa")
-    draw = ImageDraw.Draw(canvas)
-
-    header_height = 54
-    code_bg = "#1e1e1e"
-    code_fg = "#d4d4d4"
-    line_no_fg = "#858585"
-    accent = "#2d2d30"
-
-    draw.rounded_rectangle((40, 36, left_width - 20, canvas_height - 36), radius=18, fill=code_bg, outline="#111111", width=2)
-    draw.rounded_rectangle((left_width + 10, 36, canvas_width - 40, canvas_height - 36), radius=18, fill="#ffffff", outline="#d0d0d0", width=2)
-    draw.rectangle((40, 36, left_width - 20, 36 + header_height), fill=accent)
-    draw.rectangle((left_width + 10, 36, canvas_width - 40, 36 + header_height), fill="#e9edf5")
-
-    title_font = ImageFont.truetype(TIMES_BOLD, 24)
-    code_font = ImageFont.truetype(COURIER_NEW, 22)
-    code_font_bold = ImageFont.truetype(COURIER_NEW_BOLD, 22)
-
-    draw.text((66, 52), spec.file_path.name, fill="#ffffff", font=title_font)
-    draw.text((left_width + 36, 52), spec.title, fill="#1f2937", font=title_font)
-
-    y = 120
-    line_height = 32
-    for index, line in enumerate(code_lines, start=1):
-        draw.text((70, y), f"{index:>2}", fill=line_no_fg, font=code_font)
-        draw.text((125, y), line, fill=code_fg, font=code_font_bold if index == 1 else code_font)
-        y += line_height
-
-    target_width = right_width - 90
-    target_height = canvas_height - 140
-    ui_copy = ui_image.copy()
-    ui_copy.thumbnail((target_width, target_height))
-    x = left_width + 30 + (target_width - ui_copy.width) // 2
-    y = 90 + (target_height - ui_copy.height) // 2
-    canvas.paste(ui_copy, (x, y))
-
-    canvas.save(output_path)
-    return output_path
+def build_code_block(path: Path, start_marker: str, end_marker: str, max_lines: int = 60) -> str:
+    lines = extract_code_snippet(path, start_marker, end_marker, max_lines=max_lines)
+    wrapped = []
+    for line in lines:
+        chunks = textwrap.wrap(
+            line,
+            width=98,
+            break_long_words=False,
+            break_on_hyphens=False,
+            replace_whitespace=False,
+            drop_whitespace=False,
+        )
+        wrapped.extend(chunks if chunks else [""])
+    return "\n".join(wrapped)
 
 
-def build_code_screenshots() -> list[tuple[Path, str]]:
+def manual_screenshot_paths() -> list[tuple[Path, str]]:
     result = []
-    for spec in CODE_SCREENSHOT_SPECS:
-        result.append((build_code_ui_screenshot(spec), spec.caption))
+    for filename, caption in MANUAL_SCREENSHOT_SPECS:
+        image_path = MANUAL_SCREENSHOT_DIR / filename
+        if image_path.exists():
+            result.append((image_path, caption))
     return result
 
 
@@ -465,7 +414,7 @@ def add_cover(story: list) -> None:
 
 
 def add_index_page(story: list) -> None:
-    story.append(p("Index Page", "heading"))
+    append_main_heading(story, "Index Page")
     story.append(
         table(
             [
@@ -475,21 +424,16 @@ def add_index_page(story: list) -> None:
                 ["Technology Base", "Flask backend, SQLite database, static HTML/CSS/JS frontend, ReportLab and Pillow for report generation."],
                 ["Security Focus", "AES-256 encryption, Shamir key splitting, time-lock access control, watermarking, audit logs, bcrypt-based authentication."],
                 ["Evidence Included", "Developed system screenshots, code screenshots, testing summary, and diagram pages from previous SecuExam submissions."],
+                ["Repository Link", REPO_URL],
             ],
             [5.0, 11.0],
-        )
-    )
-    story.append(spacer(0.25))
-    story.append(
-        p(
-            "This report is prepared only for the SecuExam project. CrowdQuest is not used as an implementation source. The previous assignment pages appended here are limited to SecuExam content only.",
         )
     )
     story.append(PageBreak())
 
 
 def add_toc_page(story: list, toc: TableOfContents) -> None:
-    story.append(p("Table of Contents", "heading"))
+    append_main_heading(story, "Table of Contents")
     story.append(toc)
     story.append(PageBreak())
 
@@ -499,14 +443,14 @@ def section_paragraphs(items: Iterable[str]) -> list[Paragraph]:
 
 
 def build_story(toc: TableOfContents) -> list:
-    code_shots = build_code_screenshots()
+    manual_shots = manual_screenshot_paths()
     story: list = []
 
     add_cover(story)
     add_index_page(story)
     add_toc_page(story, toc)
 
-    story.append(main_heading("1. Introduction"))
+    append_main_heading(story, "1. Introduction")
     story.extend(
         section_paragraphs(
             [
@@ -516,7 +460,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("2. Problem Statement"))
+    append_main_heading(story, "2. Problem Statement")
     story.extend(
         section_paragraphs(
             [
@@ -526,7 +470,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("3. Objectives"))
+    append_main_heading(story, "3. Objectives")
     story.extend(
         section_paragraphs(
             [
@@ -540,13 +484,13 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("4. Proposed System"))
+    append_main_heading(story, "4. Proposed System")
     story.append(
         p(
             "The proposed system is a centralized secure distribution platform. A setter uploads a PDF and enters subject, exam start time, and duration. The backend validates the file, encrypts it with AES-256, splits the key into multiple fragments, and stores the encrypted artifact with its schedule metadata. A receiver can see the paper in the scheduled exam list but cannot download it before the unlock time. Once the request is valid, the paper is decrypted on demand, dynamically watermarked, logged, and returned as a downloadable PDF.",
         )
     )
-    story.append(sub_heading("4.1 Software Requirements Specification (SRS)"))
+    append_sub_heading(story, "4.1 Software Requirements Specification (SRS)")
     story.append(
         table(
             [
@@ -560,7 +504,7 @@ def build_story(toc: TableOfContents) -> list:
             [4.7, 11.3],
         )
     )
-    story.append(sub_heading("4.2 Functional Flow"))
+    append_sub_heading(story, "4.2 Functional Flow")
     story.extend(
         section_paragraphs(
             [
@@ -571,7 +515,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("5. Technologies Used"))
+    append_main_heading(story, "5. Technologies Used")
     story.append(
         table(
             [
@@ -588,7 +532,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("6. System Architecture"))
+    append_main_heading(story, "6. System Architecture")
     story.extend(
         section_paragraphs(
             [
@@ -610,8 +554,8 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("7. Modules"))
-    story.append(sub_heading("7.1 Authentication Module"))
+    append_main_heading(story, "7. Modules")
+    append_sub_heading(story, "7.1 Authentication Module")
     story.extend(
         section_paragraphs(
             [
@@ -619,11 +563,9 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    auth_image = fit_image(latest_screenshot("_01_login_page_load.png"), 16.5, 10.0)
-    story.append(auth_image)
-    story.append(p("Step 1 module photo: login page of the developed system.", "caption"))
+    story.append(KeepTogether([fit_image(latest_screenshot("_01_login_page_load.png"), 16.5, 10.0), p("Step 1 module photo: login page of the developed system.", "caption")]))
 
-    story.append(sub_heading("7.2 Setter Module"))
+    append_sub_heading(story, "7.2 Setter Module")
     story.extend(
         section_paragraphs(
             [
@@ -631,12 +573,10 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    story.append(fit_image(latest_screenshot("_11_upload_form_filled.png"), 16.5, 10.0))
-    story.append(p("Step 2 module photo: setter enters paper metadata and schedule.", "caption"))
-    story.append(fit_image(latest_screenshot("_12_upload_encryption_result.png"), 16.5, 10.0))
-    story.append(p("Step 3 module photo: encryption result and scheduling confirmation.", "caption"))
+    story.append(KeepTogether([fit_image(latest_screenshot("_11_upload_form_filled.png"), 16.5, 10.0), p("Step 2 module photo: setter enters paper metadata and schedule.", "caption")]))
+    story.append(KeepTogether([fit_image(latest_screenshot("_12_upload_encryption_result.png"), 16.5, 10.0), p("Step 3 module photo: encryption result and scheduling confirmation.", "caption")]))
 
-    story.append(sub_heading("7.3 Receiver Module"))
+    append_sub_heading(story, "7.3 Receiver Module")
     story.extend(
         section_paragraphs(
             [
@@ -644,12 +584,10 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    story.append(fit_image(latest_screenshot("_15_receiver_exam_list.png"), 16.5, 10.0))
-    story.append(p("Step 4 module photo: receiver views the scheduled exam list.", "caption"))
-    story.append(fit_image(latest_screenshot("_16_time_lock_status.png"), 16.5, 10.0))
-    story.append(p("Step 5 module photo: receiver sees locked state and unlock timing.", "caption"))
+    story.append(KeepTogether([fit_image(latest_screenshot("_15_receiver_exam_list.png"), 16.5, 10.0), p("Step 4 module photo: receiver views the scheduled exam list.", "caption")]))
+    story.append(KeepTogether([fit_image(latest_screenshot("_16_time_lock_status.png"), 16.5, 10.0), p("Step 5 module photo: receiver sees locked state and unlock timing.", "caption")]))
 
-    story.append(sub_heading("7.4 Admin Module"))
+    append_sub_heading(story, "7.4 Admin Module")
     story.extend(
         section_paragraphs(
             [
@@ -657,35 +595,22 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    story.append(fit_image(latest_screenshot("_19_admin_dashboard.png"), 16.5, 10.0))
-    story.append(p("Step 6 module photo: admin dashboard overview.", "caption"))
-    story.append(fit_image(latest_screenshot("_23_admin_audit_logs.png"), 16.5, 10.0))
-    story.append(p("Step 7 module photo: admin audit log inspection.", "caption"))
+    story.append(KeepTogether([fit_image(latest_screenshot("_19_admin_dashboard.png"), 16.5, 10.0), p("Step 6 module photo: admin dashboard overview.", "caption")]))
+    story.append(KeepTogether([fit_image(latest_screenshot("_23_admin_audit_logs.png"), 16.5, 10.0), p("Step 7 module photo: admin audit log inspection.", "caption")]))
 
-    story.append(main_heading("8. UML Diagrams (Description)"))
+    append_main_heading(story, "8. UML Diagrams (Description)")
     story.extend(
         section_paragraphs(
             [
-                "The UML and design artefacts for SecuExam were produced in the earlier lab assignments and are included again in Appendix C as direct SecuExam-only page extracts. These include the WBS, activity diagram, ER diagram, RE model, state diagram, class diagram, DFDs, use-case diagram, UI / UX design page, component diagram, package diagram, deployment diagram, and sequence diagram.",
-                "These diagrams map directly to the implemented system. The class and ER diagrams align with the SQLite schema and role model; the sequence and activity diagrams align with the implemented setter and receiver workflows; the deployment and component views align with the current Flask-based architecture.",
+                "The UML and design artefacts for SecuExam are part of the final documentation because they explain how the implemented system was analysed and structured before and during development. The diagram images are included later in Appendix C, but their meaning is also described here in text so that the report remains readable without depending on image text.",
             ]
         )
     )
-    story.append(
-        table(
-            [
-                ["Diagram", "Purpose in the Final System"],
-                ["WBS", "Shows project breakdown across planning, development, testing, and deployment."],
-                ["Activity / Sequence", "Explains the secure upload and controlled download workflow."],
-                ["ER / Class", "Matches the entities and object relationships implemented in the backend."],
-                ["DFD / Use Case", "Shows actor actions and data movement across the application."],
-                ["Component / Package / Deployment", "Describes code organization and runtime placement of the system."],
-            ],
-            [4.8, 11.2],
-        )
-    )
+    for title, description in UML_DESCRIPTIONS:
+        append_sub_heading(story, f"8.{UML_DESCRIPTIONS.index((title, description)) + 1} {title}")
+        story.append(p(description))
 
-    story.append(main_heading("9. Testing"))
+    append_main_heading(story, "9. Testing")
     story.extend(
         section_paragraphs(
             [
@@ -694,7 +619,7 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    story.append(sub_heading("9.1 Test Summary"))
+    append_sub_heading(story, "9.1 Test Summary")
     story.append(
         table(
             [
@@ -708,7 +633,7 @@ def build_story(toc: TableOfContents) -> list:
             [4.8, 11.2],
         )
     )
-    story.append(sub_heading("9.2 UML Testing and Traceability"))
+    append_sub_heading(story, "9.2 UML Testing and Traceability")
     story.extend(
         section_paragraphs(
             [
@@ -716,7 +641,7 @@ def build_story(toc: TableOfContents) -> list:
             ]
         )
     )
-    story.append(sub_heading("9.3 Sample Result Table"))
+    append_sub_heading(story, "9.3 Sample Result Table")
     story.append(
         table(
             [
@@ -730,7 +655,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("10. Advantages"))
+    append_main_heading(story, "10. Advantages")
     story.extend(
         section_paragraphs(
             [
@@ -742,7 +667,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("11. Limitations"))
+    append_main_heading(story, "11. Limitations")
     story.extend(
         section_paragraphs(
             [
@@ -753,7 +678,7 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("12. Future Enhancements"))
+    append_main_heading(story, "12. Future Enhancements")
     story.extend(
         section_paragraphs(
             [
@@ -765,41 +690,70 @@ def build_story(toc: TableOfContents) -> list:
         )
     )
 
-    story.append(main_heading("13. Conclusion"))
+    append_main_heading(story, "13. Conclusion")
     story.extend(
         section_paragraphs(
             [
-                "SecuExam is implemented as a complete secure exam paper distribution system within the scope of the software engineering lab. The system covers the required secure-delivery lifecycle from upload through timed release and traceable download. It also includes the required documentation artefacts, UML continuity from previous assignments, and end-to-end automated validation.",
+                f"SecuExam is implemented as a complete secure exam paper distribution system within the scope of the software engineering lab. The system covers the required secure-delivery lifecycle from upload through timed release and traceable download. The public project repository for review is available at {REPO_URL}.",
             ]
         )
     )
 
     story.append(PageBreak())
-    story.append(main_heading("Appendix A. Code Screenshots"))
+    append_main_heading(story, "Appendix A. Code Appendix")
     story.append(
         p(
-            "The following pages show code from the actual SecuExam implementation paired with screenshots of the developed system. These are generated from the current workspace files and the latest successful application screenshots.",
+            "This appendix contains code extracts from the implemented SecuExam project. These excerpts are taken from the actual files in the current workspace and document the most relevant backend, frontend, and testing logic.",
         )
     )
-    for image_path, caption in code_shots:
-        story.append(sub_heading(caption))
-        story.append(fit_image(image_path, 17.0, 11.5))
-        story.append(p(caption, "caption"))
-        story.append(spacer(0.15))
+    code_sections = [
+        (
+            "A.1 Backend authentication logic (`server.py`)",
+            build_code_block(BASE_DIR / "server.py", '@app.route("/api/login", methods=["POST"])', '@app.route("/api/logout", methods=["POST"])', max_lines=34),
+        ),
+        (
+            "A.2 Backend secure upload logic (`server.py`)",
+            build_code_block(BASE_DIR / "server.py", '@app.route("/api/papers/upload", methods=["POST"])', "# Routes — Paper Listing & Download (Receiver)", max_lines=42),
+        ),
+        (
+            "A.3 Backend secure download logic (`server.py`)",
+            build_code_block(BASE_DIR / "server.py", '@app.route("/api/papers/<paper_id>/download", methods=["GET"])', "def _log_access", max_lines=42),
+        ),
+        (
+            "A.4 Setter upload UI logic (`secuexam_app/setter.html`)",
+            build_code_block(BASE_DIR / "secuexam_app" / "setter.html", "async function handleUpload(e)", "async function loadPapers()", max_lines=34),
+        ),
+        (
+            "A.5 Selenium test logic (`test_secuexam.py`)",
+            build_code_block(BASE_DIR / "test_secuexam.py", "def login_as(self, role, creds):", "def logout(self):", max_lines=34),
+        ),
+    ]
+    for title, code in code_sections:
+        append_sub_heading(story, title)
+        story.append(Preformatted(code, ParagraphStyle("code", fontName="Courier", fontSize=9, leading=12)))
+        story.append(spacer(0.1))
 
     story.append(PageBreak())
-    story.append(main_heading("Appendix B. Screenshot of the Developed System"))
+    append_main_heading(story, "Appendix B. Screenshot of the Developed System")
     for suffix, caption in SCREENSHOT_SUFFIXES:
-        story.append(sub_heading(caption))
-        story.append(fit_image(latest_screenshot(suffix), 16.8, 10.2))
-        story.append(p(caption, "caption"))
+        append_sub_heading(story, caption)
+        story.append(KeepTogether([fit_image(latest_screenshot(suffix), 16.8, 10.2), p(caption, "caption")]))
         story.append(spacer(0.15))
 
+    if manual_shots:
+        story.append(PageBreak())
+        append_main_heading(story, "Appendix C. VS Code and Running App Screenshots")
+        for image_path, caption in manual_shots:
+            append_sub_heading(story, image_path.name)
+            story.append(KeepTogether([fit_image(image_path, 17.0, 11.5), p(caption, "caption")]))
+            story.append(spacer(0.15))
+
     story.append(PageBreak())
-    story.append(main_heading("Appendix C. SecuExam Diagram Pages from Previous Assignments"))
+    appendix_letter = "D" if manual_shots else "C"
+    append_main_heading(story, f"Appendix {appendix_letter}. SecuExam Diagram Pages from Previous Assignments")
     story.append(
         p(
-            "These pages are direct image extracts from the previous SecuExam assignment PDFs. Only SecuExam pages are included here. CrowdQuest pages are not appended.",
+            "These pages are direct image extracts from the previous SecuExam assignment PDFs. They are included only to preserve the completed SecuExam UML and design artefacts inside one final document.",
         )
     )
     story.append(HRFlowable(width="100%", thickness=0.6, color=colors.black))
@@ -807,9 +761,8 @@ def build_story(toc: TableOfContents) -> list:
 
     for item in DIAGRAM_PAGES:
         story.append(PageBreak())
-        story.append(sub_heading(item.caption))
+        append_sub_heading(story, item.caption)
         story.append(fit_image(image_for_pdf_page(item.pdf_name, item.page_number), 17.0, 23.0))
-        story.append(p(f"Source: {item.pdf_name}, page {item.page_number}", "caption"))
 
     return story
 
