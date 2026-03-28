@@ -14,9 +14,10 @@ from io import BytesIO
 
 from flask import (
     Flask, request, jsonify, session, send_file,
-    render_template, redirect, url_for
+    render_template, redirect, url_for, send_from_directory
 )
 import bcrypt
+from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 from cryptography.hazmat.backends import default_backend
@@ -30,18 +31,52 @@ app = Flask(
     template_folder="secuexam_app",
 )
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PERSISTENT_DATA_DIR = (
+    os.environ.get("SECUEXAM_DATA_DIR")
+    or os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+)
+UPLOAD_DIR = (
+    os.path.join(PERSISTENT_DATA_DIR, "uploads")
+    if PERSISTENT_DATA_DIR
+    else os.path.join(BASE_DIR, "secuexam_app", "uploads")
+)
+DB_PATH = (
+    os.path.join(PERSISTENT_DATA_DIR, "secuexam.db")
+    if PERSISTENT_DATA_DIR
+    else os.path.join(BASE_DIR, "secuexam.db")
+)
+HOSTED_ENV = any(
+    os.environ.get(name)
+    for name in ("RAILWAY_ENVIRONMENT", "RENDER", "RENDER_EXTERNAL_URL")
+)
 app.config["SECRET_KEY"] = os.environ.get(
     "SECUEXAM_SECRET_KEY",
     "secuexam-dev-secret-key-change-in-production",
 )
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "secuexam_app", "uploads")
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
+    "SECUEXAM_COOKIE_SECURE",
+    "1" if HOSTED_ENV else "0",
+) == "1"
+app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB limit
 
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-DB_PATH = os.path.join(BASE_DIR, "secuexam.db")
+APK_PATH = os.path.join(
+    BASE_DIR,
+    "android",
+    "app",
+    "build",
+    "outputs",
+    "apk",
+    "debug",
+    "app-debug.apk",
+)
+
+if os.environ.get("SECUEXAM_TRUST_PROXY", "1" if HOSTED_ENV else "0") == "1":
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # ---------------------------------------------------------------------------
 # Database helpers
@@ -344,6 +379,44 @@ def index():
     if "user_id" in session:
         return redirect_to_role_home()
     return render_template("index.html")
+
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(
+        app.static_folder,
+        "manifest.webmanifest",
+        mimetype="application/manifest+json",
+    )
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    response = send_from_directory(
+        app.static_folder,
+        "service-worker.js",
+        mimetype="application/javascript",
+    )
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@app.route("/healthz")
+def healthz():
+    return jsonify({"status": "ok", "time": format_app_datetime(now_local())})
+
+
+@app.route("/downloads/secuexam-debug.apk")
+def download_android_apk():
+    if not os.path.exists(APK_PATH):
+        return jsonify({"error": "APK not built yet"}), 404
+    return send_file(
+        APK_PATH,
+        mimetype="application/vnd.android.package-archive",
+        as_attachment=True,
+        download_name="SecuExam-debug.apk",
+    )
 
 
 @app.route("/setter")
@@ -866,13 +939,19 @@ def api_admin_keys(paper_id):
 # Entrypoint
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "5050"))
     print("\n" + "=" * 60)
     print("  SecuExam — Secure Exam Paper Distribution System")
-    print("  Server running at http://localhost:5050")
+    print(f"  Server running at http://localhost:{port}")
     print("=" * 60)
     print("\n  Default credentials:")
     print("    Admin   : admin@secuexam.in / admin123")
     print("    Setter  : setter@vit.ac.in / setter123")
     print("    Receiver: receiver@vit.ac.in / receiver123")
     print("=" * 60 + "\n")
-    app.run(debug=os.environ.get("SECUEXAM_DEBUG") == "1", host="0.0.0.0", port=5050, use_reloader=False)
+    app.run(
+        debug=os.environ.get("SECUEXAM_DEBUG") == "1",
+        host="0.0.0.0",
+        port=port,
+        use_reloader=False,
+    )

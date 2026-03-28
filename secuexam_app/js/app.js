@@ -2,6 +2,100 @@
    SecuExam — Shared JavaScript Utilities
    ======================================================================== */
 
+let deferredInstallPrompt = null;
+
+function isStandaloneMode() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function isLikelyMobileDevice() {
+    return window.innerWidth <= 900 || /android|iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function dismissInstallBanner() {
+    localStorage.setItem('secuexam-install-banner-dismissed', '1');
+    const banner = document.getElementById('install-banner');
+    if (banner) banner.remove();
+}
+
+async function promptPwaInstall() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    dismissInstallBanner();
+}
+
+function renderInstallBanner(mode) {
+    if (!isLikelyMobileDevice() || isStandaloneMode()) return;
+    if (localStorage.getItem('secuexam-install-banner-dismissed') === '1') return;
+    if (document.getElementById('install-banner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'install-banner';
+    banner.className = 'install-banner';
+
+    if (mode === 'prompt') {
+        banner.innerHTML = `
+            <div class="install-banner-copy">
+                <strong>Install SecuExam</strong>
+                <span>Open it like a real mobile app from your home screen.</span>
+            </div>
+            <div class="install-banner-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="install-now-btn">Install</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="install-dismiss-btn">Later</button>
+            </div>
+        `;
+    } else {
+        banner.innerHTML = `
+            <div class="install-banner-copy">
+                <strong>Add SecuExam to Home Screen</strong>
+                <span>In Safari, tap Share and then choose Add to Home Screen.</span>
+            </div>
+            <div class="install-banner-actions">
+                <button type="button" class="btn btn-secondary btn-sm" id="install-dismiss-btn">Dismiss</button>
+            </div>
+        `;
+    }
+
+    document.body.appendChild(banner);
+    document.getElementById('install-dismiss-btn')?.addEventListener('click', dismissInstallBanner);
+    document.getElementById('install-now-btn')?.addEventListener('click', promptPwaInstall);
+}
+
+function registerPwaSupport() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+        });
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        renderInstallBanner('prompt');
+    });
+
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        dismissInstallBanner();
+        showToast('SecuExam installed on this device', 'success');
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.body.classList.toggle('standalone-app', isStandaloneMode());
+        if (isIosDevice() && !isStandaloneMode()) {
+            renderInstallBanner('ios');
+        }
+    });
+}
+
+registerPwaSupport();
+
 // Toast notification system
 function showToast(message, type = 'info', duration = 4000) {
     const container = document.getElementById('toast-container');

@@ -6,3 +6,9 @@ secuexam.db
 test_screenshots/
 secuexam_app/uploads/
 report_assets/generated/
+node_modules/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+dist/

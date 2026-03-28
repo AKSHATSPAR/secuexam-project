@@ -1,0 +1,44 @@
+{
+  "id": "/",
+  "name": "SecuExam",
+  "short_name": "SecuExam",
+  "description": "Secure exam paper distribution with time-lock access and auditable downloads.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "categories": ["education", "productivity", "security"],
+  "icons": [
+    {
+      "src": "/secuexam_app/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/secuexam_app/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Login",
+      "short_name": "Login",
+      "url": "/"
+    },
+    {
+      "name": "Setter Dashboard",
+      "short_name": "Setter",
+      "url": "/setter"
+    },
+    {
+      "name": "Receiver Dashboard",
+      "short_name": "Receiver",
+      "url": "/receiver"
+    }
+  ]
+}

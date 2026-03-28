@@ -1,0 +1,32 @@
+{
+  "name": "software_course_based-project",
+  "version": "1.0.0",
+  "description": "Secure exam paper distribution system built with Flask, SQLite, and a static HTML/CSS/JS frontend.",
+  "main": "index.js",
+  "scripts": {
+    "android:add": "npx cap add android",
+    "android:open": "npx cap open android",
+    "android:sync": "npx cap sync android",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AKSHATSPAR/secuexam-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AKSHATSPAR/secuexam-project/issues"
+  },
+  "homepage": "https://github.com/AKSHATSPAR/secuexam-project#readme",
+  "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}

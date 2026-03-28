@@ -41,6 +41,41 @@ python server.py
 
 Default URL: `http://127.0.0.1:5050`
 
+## Open It On Your Phone
+
+SecuExam now includes installable PWA support, so it can behave like a mobile app on a phone.
+
+1. Start the server:
+
+```bash
+cd /Users/akshat/SOFTWARE_COURSE_BASED\ PROJECT
+source venv/bin/activate
+python server.py
+```
+
+2. In another terminal, print the phone-friendly access URL:
+
+```bash
+cd /Users/akshat/SOFTWARE_COURSE_BASED\ PROJECT
+source venv/bin/activate
+python print_mobile_access.py
+```
+
+3. Open the shown LAN URL on the phone while the phone and laptop are on the same Wi-Fi.
+
+4. Install it to the home screen:
+
+- iPhone / iPad Safari: `Share` -> `Add to Home Screen`
+- Android Chrome: `Install app` or `Add to Home screen`
+
+For a public HTTPS demo link, you can also run:
+
+```bash
+npx localtunnel --port 5050
+```
+
+Keep the Flask server running while using the phone app.
+
 ## Demo accounts
 
 - `admin@secuexam.in` / `admin123`

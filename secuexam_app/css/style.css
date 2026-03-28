@@ -65,6 +65,7 @@ body {
     line-height: 1.6;
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* --- Animated Background --- */
@@ -598,6 +599,47 @@ tbody tr:hover {
     to { transform: translateX(0); opacity: 1; }
 }
 
+/* --- Install Banner --- */
+.install-banner {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    background: rgba(17, 24, 39, 0.92);
+    border: 1px solid var(--border-glass-hover);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(20px);
+    box-shadow: var(--shadow-lg);
+}
+
+.install-banner-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.install-banner-copy strong {
+    font-size: 0.95rem;
+}
+
+.install-banner-copy span {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.install-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
 /* --- Upload Zone --- */
 .upload-zone {
     border: 2px dashed var(--border-glass);
@@ -921,8 +963,55 @@ tbody tr:hover {
 @media (max-width: 768px) {
     .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .page-container { padding: 1rem; }
-    .navbar { padding: 0 1rem; }
+    .navbar {
+        height: auto;
+        min-height: 64px;
+        padding: calc(0.75rem + env(safe-area-inset-top)) 1rem 0.75rem;
+        align-items: flex-start;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .navbar-user {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .navbar-user .user-info {
+        text-align: left;
+    }
+    .tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .tab {
+        white-space: nowrap;
+        flex: 0 0 auto;
+    }
+    .table-container {
+        -webkit-overflow-scrolling: touch;
+    }
+    .toast-container {
+        left: 1rem;
+        right: 1rem;
+        top: calc(72px + env(safe-area-inset-top));
+    }
+    .toast {
+        min-width: 0;
+        max-width: none;
+    }
+    .install-banner {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .install-banner-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
     h1 { font-size: 1.5rem; }
+}
+
+body.standalone-app .page-container {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
 }
 
 /* --- Loading Spinner --- */
