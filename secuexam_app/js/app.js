@@ -3,9 +3,20 @@
    ======================================================================== */
 
 let deferredInstallPrompt = null;
+const SecuExamSecurity = window.Capacitor?.registerPlugin
+    ? window.Capacitor.registerPlugin('SecuExamSecurity')
+    : null;
+let nativeSecurityState = null;
+let nativeSecurityListenerBound = false;
+let nativeNetworkSignalsBound = false;
 
 function isStandaloneMode() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+function isCapacitorNativeApp() {
+    const platform = window.Capacitor?.getPlatform?.();
+    return Boolean(platform && platform !== 'web');
 }
 
 function isIosDevice() {
@@ -68,6 +79,8 @@ function renderInstallBanner(mode) {
 }
 
 function registerPwaSupport() {
+    if (isCapacitorNativeApp()) return;
+
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
             navigator.serviceWorker.register('/service-worker.js').catch(() => {});
@@ -95,6 +108,158 @@ function registerPwaSupport() {
 }
 
 registerPwaSupport();
+
+function formatNativeSecuritySeconds(seconds) {
+    if (seconds == null || seconds < 0) return 'not yet verified';
+    if (seconds < 60) return `${seconds}s ago`;
+    return `${Math.floor(seconds / 60)}m ago`;
+}
+
+function describeNativeSecurityState(state) {
+    if (!state?.appLockSupported) {
+        return 'Set a device screen lock on this phone to enable the full biometric shield.';
+    }
+    if (state.unlocked) {
+        return `Fingerprint or device PIN is active, screenshots are blocked, and the console relocks after ${state.autoRelockSeconds || 45} seconds away from the app.`;
+    }
+    return 'This Android build is locked until fingerprint or device credential verification succeeds.';
+}
+
+function ensureNativeSecurityPanel() {
+    let panel = document.getElementById('native-security-panel');
+    if (panel) return panel;
+
+    panel = document.createElement('section');
+    panel.id = 'native-security-panel';
+    panel.className = 'glass-card native-security-panel';
+
+    const loginMainPanel = document.querySelector('.login-main-panel');
+    const roleTabs = document.getElementById('role-tabs');
+    if (loginMainPanel && roleTabs && roleTabs.parentNode === loginMainPanel) {
+        loginMainPanel.insertBefore(panel, roleTabs);
+        return panel;
+    }
+
+    const pageHeader = document.querySelector('.page-container .page-header');
+    if (pageHeader?.parentNode) {
+        pageHeader.insertAdjacentElement('afterend', panel);
+        return panel;
+    }
+
+    const pageContainer = document.querySelector('.page-container');
+    if (pageContainer) {
+        pageContainer.prepend(panel);
+        return panel;
+    }
+
+    return null;
+}
+
+async function lockNativeShellNow() {
+    if (!SecuExamSecurity?.lockNow) return;
+    try {
+        await SecuExamSecurity.lockNow();
+    } catch {
+        showToast('Unable to trigger the native app lock right now', 'warning');
+    }
+}
+
+function renderNativeSecurityPanel(state) {
+    if (!isCapacitorNativeApp() || !state) return;
+
+    document.body.classList.add('native-shell');
+    nativeSecurityState = state;
+    const panel = ensureNativeSecurityPanel();
+    if (!panel) return;
+
+    const appLockLabel = state.appLockSupported ? 'Armed' : 'Unavailable';
+    const unlockLabel = state.unlocked ? 'Unlocked' : 'Locked';
+    const unlockBadgeClass = state.unlocked ? 'badge-success' : 'badge-warning';
+
+    panel.innerHTML = `
+        <div class="native-security-head">
+            <div>
+                <div class="eyebrow-text">Android Security Layer</div>
+                <h3>Mobile shield ${state.appLockSupported ? 'active' : 'limited'}</h3>
+                <p class="native-security-copy">${describeNativeSecurityState(state)}</p>
+            </div>
+            <span class="badge ${unlockBadgeClass}">${unlockLabel}</span>
+        </div>
+        <div class="native-security-metrics">
+            <div class="native-security-metric">
+                <span class="native-security-label">App lock</span>
+                <strong>${appLockLabel}</strong>
+                <span>Fingerprint or device PIN</span>
+            </div>
+            <div class="native-security-metric">
+                <span class="native-security-label">Screen privacy</span>
+                <strong>${state.screenCaptureBlocked ? 'Blocked' : 'Open'}</strong>
+                <span>Recents preview and screenshots</span>
+            </div>
+            <div class="native-security-metric">
+                <span class="native-security-label">Auto relock</span>
+                <strong>${state.autoRelockSeconds || 45}s</strong>
+                <span>Background inactivity window</span>
+            </div>
+        </div>
+        <div class="native-security-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="native-lock-now-btn" ${state.appLockSupported ? '' : 'disabled'}>
+                Lock Now
+            </button>
+            <span class="native-security-note">
+                Last unlock ${formatNativeSecuritySeconds(state.secondsSinceUnlock)} • Backups restricted
+            </span>
+        </div>
+    `;
+
+    panel.querySelector('#native-lock-now-btn')?.addEventListener('click', lockNativeShellNow);
+}
+
+async function loadNativeSecurityState() {
+    if (!isCapacitorNativeApp() || !SecuExamSecurity?.getStatus) return null;
+    try {
+        return await SecuExamSecurity.getStatus();
+    } catch {
+        return null;
+    }
+}
+
+async function registerNativeSecurityLayer() {
+    if (!isCapacitorNativeApp()) return;
+
+    document.body.classList.add('native-shell');
+
+    if (!nativeNetworkSignalsBound) {
+        window.addEventListener('offline', () => showToast('Secure connection lost. The APK will reconnect when the network returns.', 'warning'));
+        window.addEventListener('online', () => showToast('Secure connection restored', 'success'));
+        nativeNetworkSignalsBound = true;
+    }
+
+    if (!nativeSecurityListenerBound && typeof SecuExamSecurity?.addListener === 'function') {
+        try {
+            await SecuExamSecurity.addListener('securityStatusChanged', (state) => {
+                const wasUnlocked = nativeSecurityState?.unlocked;
+                renderNativeSecurityPanel(state);
+                if (wasUnlocked && state && !state.unlocked) {
+                    showToast('SecuExam relocked. Verify your identity to continue.', 'warning');
+                }
+            });
+        } catch {
+            // Ignore bridge listener setup issues and continue with a static status fetch.
+        } finally {
+            nativeSecurityListenerBound = true;
+        }
+    }
+
+    const state = await loadNativeSecurityState();
+    if (state) {
+        renderNativeSecurityPanel(state);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    registerNativeSecurityLayer();
+});
 
 // Toast notification system
 function showToast(message, type = 'info', duration = 4000) {
