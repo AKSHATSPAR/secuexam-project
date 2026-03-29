@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e17">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SecuExam">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/secuexam_app/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/secuexam_app/icons/icon-192.png">
+    <title>SecuExam — Admin Dashboard</title>
+    <link rel="stylesheet" href="/secuexam_app/css/classic.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="/classic/admin">
+            <div class="logo-icon">🔐</div>
+            <span class="gradient-text">SecuExam</span>
+        </a>
+        <div class="navbar-user">
+            <div class="user-info">
+                <div class="user-name" id="nav-user-name">Administrator</div>
+                <div class="user-role">ADMIN</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <!-- Page Header -->
+        <div class="page-header slide-up">
+            <h1>🛡️ Admin Control Center</h1>
+            <p class="page-desc">Monitor system security, manage users, and audit all access attempts</p>
+        </div>
+
+        <!-- Stats Dashboard -->
+        <div class="grid-4 stagger" style="margin-bottom: 2rem;">
+            <div class="glass-card stat-card accent">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value" id="stat-users">0</div>
+                <div class="stat-label">Total Users</div>
+            </div>
+            <div class="glass-card stat-card success">
+                <div class="stat-icon">📄</div>
+                <div class="stat-value" id="stat-papers">0</div>
+                <div class="stat-label">Exam Papers</div>
+            </div>
+            <div class="glass-card stat-card warning">
+                <div class="stat-icon">📥</div>
+                <div class="stat-value" id="stat-downloads">0</div>
+                <div class="stat-label">Downloads</div>
+            </div>
+            <div class="glass-card stat-card danger">
+                <div class="stat-icon">🚫</div>
+                <div class="stat-value" id="stat-blocked">0</div>
+                <div class="stat-label">Blocked Attempts</div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs" id="admin-tabs">
+            <button class="tab active" data-tab="analytics" onclick="switchTab('analytics')">📊 Analytics</button>
+            <button class="tab" data-tab="users" onclick="switchTab('users')">👥 Users</button>
+            <button class="tab" data-tab="audit" onclick="switchTab('audit')">📋 Audit Logs</button>
+            <button class="tab" data-tab="papers" onclick="switchTab('papers')">📄 Papers</button>
+        </div>
+
+        <!-- Tab: Analytics -->
+        <div id="tab-analytics" class="tab-content">
+            <div class="grid-2" style="margin-bottom: 2rem;">
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 1rem;">👥 Users by Role</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-users-role"></canvas>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <h3 style="margin-bottom: 1rem;">🔒 Access Attempts by Status</h3>
+                    <div class="chart-container">
+                        <canvas id="chart-access-status"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="glass-card">
+                <h3 style="margin-bottom: 1rem;">🔐 Security Features Active</h3>
+                <div class="feature-grid">
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: var(--accent-primary-glow); color: var(--accent-primary);">🔒</div>
+                        <div>
+                            <h4>AES-256-CBC Encryption</h4>
+                            <p>All papers encrypted with 256-bit Advanced Encryption Standard in CBC mode with PKCS7 padding</p>
+                        </div>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-secondary);">🔑</div>
+                        <div>
+                            <h4>Shamir's Secret Sharing (3-of-5)</h4>
+                            <p>Decryption keys split into 5 fragments; minimum 3 required to reconstruct. No single point of failure</p>
+                        </div>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: var(--success-bg); color: var(--success);">⏱️</div>
+                        <div>
+                            <h4>Server-Side Time-Lock</h4>
+                            <p>NTP-synchronized timestamp verification blocks access until T-30 minutes before exam start</p>
+                        </div>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: var(--warning-bg); color: var(--warning);">💧</div>
+                        <div>
+                            <h4>Dynamic Watermarking</h4>
+                            <p>Receiver IP, name, and timestamp embedded on every PDF page footer for post-leak forensics</p>
+                        </div>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: var(--danger-bg); color: var(--danger);">📝</div>
+                        <div>
+                            <h4>Immutable Audit Trail</h4>
+                            <p>Every access attempt (success, blocked, failed) logged with IP, timestamp, and user details</p>
+                        </div>
+                    </div>
+                    <div class="feature-card glass-card">
+                        <div class="feature-icon" style="background: var(--info-bg); color: var(--info);">🔐</div>
+                        <div>
+                            <h4>Bcrypt Password Hashing</h4>
+                            <p>All passwords hashed with bcrypt (salt rounds). Cleartext passwords never stored or transmitted</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Users -->
+        <div id="tab-users" class="tab-content" style="display:none;">
+            <div class="glass-card">
+                <div class="section-header">
+                    <h2>👥 User Management</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadUsers()">🔄 Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>College</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <tr><td colspan="7"><div class="spinner"></div> Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Audit Logs -->
+        <div id="tab-audit" class="tab-content" style="display:none;">
+            <div class="glass-card">
+                <div class="section-header">
+                    <h2>📋 Security Audit Log</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadLogs()">🔄 Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Paper</th>
+                                <th>IP Address</th>
+                                <th>Status</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            <tr><td colspan="6"><div class="spinner"></div> Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Papers -->
+        <div id="tab-papers" class="tab-content" style="display:none;">
+            <div class="glass-card">
+                <div class="section-header">
+                    <h2>📄 All Exam Papers</h2>
+                    <button class="btn btn-secondary btn-sm" onclick="loadAllPapers()">🔄 Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Setter</th>
+                                <th>File</th>
+                                <th>Size</th>
+                                <th>Encrypted</th>
+                                <th>Exam Time</th>
+                                <th>Unlock</th>
+                                <th>Key Shares</th>
+                            </tr>
+                        </thead>
+                        <tbody id="papers-table-body">
+                            <tr><td colspan="8"><div class="spinner"></div> Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/secuexam_app/js/app.js"></script>
+    <script src="/secuexam_app/js/classic.js"></script>
+    <script>
+        let currentUser = null;
+        let usersRoleChart = null;
+        let accessStatusChart = null;
+
+        async function init() {
+            currentUser = await checkAuth('admin');
+            if (!currentUser) return;
+            document.getElementById('nav-user-name').textContent = currentUser.name;
+            await loadStats();
+            loadUsers();
+            loadLogs();
+            loadAllPapers();
+        }
+
+        // --- Tab switching ---
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            document.getElementById(`tab-${tab}`).style.display = 'block';
+        }
+
+        // --- Stats & Charts ---
+        async function loadStats() {
+            try {
+                const data = await apiFetch('/api/admin/stats');
+                document.getElementById('stat-users').textContent = data.total_users;
+                document.getElementById('stat-papers').textContent = data.total_papers;
+                document.getElementById('stat-downloads').textContent = data.total_downloads;
+                document.getElementById('stat-blocked').textContent = data.blocked_attempts;
+
+                // Users by role chart
+                const roleLabels = Object.keys(data.users_by_role || {});
+                const roleValues = Object.values(data.users_by_role || {});
+                
+                if (usersRoleChart) usersRoleChart.destroy();
+                usersRoleChart = new Chart(document.getElementById('chart-users-role'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: roleLabels.map(r => r.charAt(0).toUpperCase() + r.slice(1)),
+                        datasets: [{
+                            data: roleValues,
+                            backgroundColor: ['#6366f1', '#10b981', '#f59e0b'],
+                            borderWidth: 0,
+                            hoverOffset: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 16, font: { family: 'Inter' } } }
+                        },
+                        cutout: '65%'
+                    }
+                });
+
+                // Access status chart
+                const statusLabels = Object.keys(data.access_by_status || {});
+                const statusValues = Object.values(data.access_by_status || {});
+                const statusColors = { success: '#10b981', time_locked: '#f59e0b', failed: '#ef4444', denied: '#ef4444' };
+
+                if (accessStatusChart) accessStatusChart.destroy();
+                accessStatusChart = new Chart(document.getElementById('chart-access-status'), {
+                    type: 'bar',
+                    data: {
+                        labels: statusLabels.map(s => s.replace('_', ' ').toUpperCase()),
+                        datasets: [{
+                            label: 'Attempts',
+                            data: statusValues,
+                            backgroundColor: statusLabels.map(s => statusColors[s] || '#6366f1'),
+                            borderRadius: 8,
+                            barThickness: 40
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { family: 'Inter', size: 11 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#64748b', font: { family: 'Inter' }, stepSize: 1 } }
+                        }
+                    }
+                });
+            } catch (err) {}
+        }
+
+        // --- Users ---
+        async function loadUsers() {
+            try {
+                const data = await apiFetch('/api/admin/users');
+                const tbody = document.getElementById('users-table-body');
+                if (!data.users.length) {
+                    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>No users found</h3></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.users.map(u => `
+                    <tr>
+                        <td><strong>${escapeHtml(u.name)}</strong></td>
+                        <td style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(u.email)}</td>
+                        <td><span class="badge badge-${u.role === 'admin' ? 'danger' : u.role === 'setter' ? 'accent' : 'info'}">${u.role.toUpperCase()}</span></td>
+                        <td>${u.college_code || '—'}</td>
+                        <td>${u.approved ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-warning">Pending</span>'}</td>
+                        <td>${formatDateTime(u.created_at)}</td>
+                        <td>
+                            ${!u.approved ? `<button class="btn btn-success btn-sm" onclick="approveUser('${u.user_id}')">✅ Approve</button>` : ''}
+                            ${u.role !== 'admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.user_id}', '${escapeHtml(u.name)}')">🗑️</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {}
+        }
+
+        async function approveUser(userId) {
+            await apiFetch(`/api/admin/users/${userId}/approve`, { method: 'POST' });
+            showToast('User approved', 'success');
+            loadStats();
+            loadUsers();
+        }
+
+        async function deleteUser(userId, name) {
+            if (!confirm(`Delete user "${name}"? This cannot be undone.`)) return;
+            await apiFetch(`/api/admin/users/${userId}/delete`, { method: 'DELETE' });
+            showToast('User deleted', 'success');
+            loadStats();
+            loadUsers();
+            loadLogs();
+            loadAllPapers();
+        }
+
+        // --- Audit Logs ---
+        async function loadLogs() {
+            try {
+                const data = await apiFetch('/api/admin/logs');
+                const tbody = document.getElementById('logs-table-body');
+                if (!data.logs.length) {
+                    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><h3>No logs yet</h3></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.logs.map(l => {
+                    const statusBadge = {
+                        success: 'badge-success', time_locked: 'badge-warning',
+                        failed: 'badge-danger', denied: 'badge-danger'
+                    };
+                    return `
+                        <tr>
+                            <td>${formatDateTime(l.access_timestamp)}</td>
+                            <td>${escapeHtml(l.receiver_name || '—')}</td>
+                            <td>${escapeHtml(l.original_filename || '—')}</td>
+                            <td style="font-family: monospace; font-size: 0.8rem;">${l.ip_address || '—'}</td>
+                            <td><span class="badge ${statusBadge[l.status] || 'badge-info'}">${(l.status || '').toUpperCase()}</span></td>
+                            <td style="font-size: 0.8rem; color: var(--text-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(l.details || '—')}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {}
+        }
+
+        // --- Papers ---
+        async function loadAllPapers() {
+            try {
+                const data = await apiFetch('/api/papers');
+                const tbody = document.getElementById('papers-table-body');
+                if (!data.papers.length) {
+                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><h3>No papers uploaded</h3></div></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.papers.map(p => `
+                    <tr>
+                        <td><strong>${escapeHtml(p.subject)}</strong></td>
+                        <td>${escapeHtml(p.setter_name)}</td>
+                        <td style="font-family: monospace; font-size: 0.75rem;">${escapeHtml(p.filename)}</td>
+                        <td>${formatFileSize(p.file_size_mb)}</td>
+                        <td>${p.encrypted ? '<span class="badge badge-success">🔒 AES-256</span>' : '<span class="badge badge-danger">No</span>'}</td>
+                        <td>${formatDateTime(p.exam_start_time)}</td>
+                        <td>${formatDateTime(p.unlock_time)}</td>
+                        <td>
+                            <div class="key-shares">
+                                ${Array.from({ length: Math.max(p.key_share_count || 0, 5) }, (_, idx) => {
+                                    const active = idx < (p.key_share_count || 0);
+                                    const label = idx < (p.key_threshold || 3)
+                                        ? `🔑 Share ${idx + 1}`
+                                        : `🔑 ${idx + 1}`;
+                                    return `<span class="key-share" style="${active ? '' : 'opacity: 0.4;'}">${label}</span>`;
+                                }).join('')}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {}
+        }
+
+        init();
+    </script>
+</body>
+</html>

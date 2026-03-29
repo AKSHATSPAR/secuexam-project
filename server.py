@@ -246,14 +246,21 @@ def get_client_ip() -> str:
     return request.remote_addr or "unknown"
 
 
-def redirect_to_role_home():
+def redirect_to_role_home(classic: bool = False):
     role_routes = {
         "setter": "setter_page",
         "receiver": "receiver_page",
         "admin": "admin_page",
     }
-    route_name = role_routes.get(session.get("role"))
-    return redirect(url_for(route_name)) if route_name else redirect(url_for("index"))
+    classic_role_routes = {
+        "setter": "classic_setter_page",
+        "receiver": "classic_receiver_page",
+        "admin": "classic_admin_page",
+    }
+    route_map = classic_role_routes if classic else role_routes
+    route_name = route_map.get(session.get("role"))
+    fallback = "classic_index" if classic else "index"
+    return redirect(url_for(route_name)) if route_name else redirect(url_for(fallback))
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +528,13 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/classic")
+def classic_index():
+    if "user_id" in session:
+        return redirect_to_role_home(classic=True)
+    return render_template("classic/index.html")
+
+
 @app.route("/manifest.webmanifest")
 def manifest():
     return send_from_directory(
@@ -600,6 +614,15 @@ def setter_page():
     return render_template("setter.html")
 
 
+@app.route("/classic/setter")
+def classic_setter_page():
+    if "user_id" not in session:
+        return redirect(url_for("classic_index"))
+    if session.get("role") != "setter":
+        return redirect_to_role_home(classic=True)
+    return render_template("classic/setter.html")
+
+
 @app.route("/receiver")
 def receiver_page():
     if "user_id" not in session:
@@ -609,6 +632,15 @@ def receiver_page():
     return render_template("receiver.html")
 
 
+@app.route("/classic/receiver")
+def classic_receiver_page():
+    if "user_id" not in session:
+        return redirect(url_for("classic_index"))
+    if session.get("role") != "receiver":
+        return redirect_to_role_home(classic=True)
+    return render_template("classic/receiver.html")
+
+
 @app.route("/admin")
 def admin_page():
     if "user_id" not in session:
@@ -616,6 +648,15 @@ def admin_page():
     if session.get("role") != "admin":
         return redirect_to_role_home()
     return render_template("admin.html")
+
+
+@app.route("/classic/admin")
+def classic_admin_page():
+    if "user_id" not in session:
+        return redirect(url_for("classic_index"))
+    if session.get("role") != "admin":
+        return redirect_to_role_home(classic=True)
+    return render_template("classic/admin.html")
 
 
 # ---------------------------------------------------------------------------

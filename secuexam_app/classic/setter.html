@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e17">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SecuExam">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/secuexam_app/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/secuexam_app/icons/icon-192.png">
+    <title>SecuExam — Paper Setter Dashboard</title>
+    <link rel="stylesheet" href="/secuexam_app/css/classic.css">
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="/classic/setter">
+            <div class="logo-icon">🔐</div>
+            <span class="gradient-text">SecuExam</span>
+        </a>
+        <div class="navbar-user">
+            <div class="user-info">
+                <div class="user-name" id="nav-user-name">Paper Setter</div>
+                <div class="user-role">SETTER</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <!-- Page Header -->
+        <div class="page-header slide-up">
+            <h1>📝 Paper Setter Dashboard</h1>
+            <p class="page-desc">Upload, encrypt, and schedule exam papers with military-grade security</p>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="grid-3 stagger" id="stats-row" style="margin-bottom: 2rem;">
+            <div class="glass-card stat-card accent">
+                <div class="stat-icon">📄</div>
+                <div class="stat-value" id="stat-papers">0</div>
+                <div class="stat-label">Papers Uploaded</div>
+            </div>
+            <div class="glass-card stat-card success">
+                <div class="stat-icon">🔒</div>
+                <div class="stat-value" id="stat-encrypted">0</div>
+                <div class="stat-label">Encrypted</div>
+            </div>
+            <div class="glass-card stat-card warning">
+                <div class="stat-icon">⏱️</div>
+                <div class="stat-value" id="stat-scheduled">0</div>
+                <div class="stat-label">Scheduled</div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="glass-card" style="margin-bottom: 2rem;">
+            <div class="section-header">
+                <h2>📤 Upload New Exam Paper</h2>
+            </div>
+
+            <form id="upload-form" onsubmit="handleUpload(event)">
+                <div class="grid-2">
+                    <div>
+                        <!-- Upload Zone -->
+                        <div class="upload-zone" id="upload-zone">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-text">Drag & drop your PDF here</div>
+                            <div class="upload-hint">or click to browse • Max 50 MB • PDF only</div>
+                            <input type="file" id="file-input" accept=".pdf" onchange="handleFileSelect(this)">
+                        </div>
+                        <div id="file-info" style="margin-top: 0.75rem; display: none;">
+                            <div class="encryption-visual">
+                                📎 <span id="file-name-display">—</span> (<span id="file-size-display">—</span>)
+                            </div>
+                        </div>
+                        <div class="progress-bar" id="upload-progress" style="display: none;">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label class="form-label">Subject / Exam Name</label>
+                            <input class="form-input" type="text" id="subject" placeholder="e.g. Software Engineering (BCSE301P)" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Exam Start Time (Local Server Time)</label>
+                            <input class="form-input" type="datetime-local" id="exam-start" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Exam Duration (minutes)</label>
+                            <input class="form-input" type="number" id="duration" value="180" min="30" max="600">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg" id="upload-btn" style="width:100%; justify-content: center;">
+                            🔒 Encrypt & Upload
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Encryption Result -->
+            <div id="encryption-result" style="display: none; margin-top: 1.5rem;">
+                <div class="glass-card" style="border-left: 3px solid var(--success);">
+                    <h3 style="color: var(--success); margin-bottom: 1rem;">✅ Paper Encrypted & Scheduled Successfully</h3>
+                    <div class="grid-2" style="gap: 0.75rem;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Paper ID</div>
+                            <div id="result-paper-id" style="font-family: monospace; font-size: 0.85rem; color: var(--accent-primary);"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Encryption</div>
+                            <div id="result-encryption" style="font-size: 0.85rem;"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Key Shares</div>
+                            <div id="result-key-shares" style="font-size: 0.85rem;"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Unlock Time</div>
+                            <div id="result-unlock-time" style="font-size: 0.85rem;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Uploaded Papers History -->
+        <div class="glass-card">
+            <div class="section-header">
+                <h2>📋 Upload History</h2>
+                <button class="btn btn-secondary btn-sm" onclick="loadPapers()">🔄 Refresh</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>File</th>
+                            <th>Size</th>
+                            <th>Encryption</th>
+                            <th>Exam Time</th>
+                            <th>Unlock Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="papers-table-body">
+                        <tr><td colspan="7" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/secuexam_app/js/app.js"></script>
+    <script src="/secuexam_app/js/classic.js"></script>
+    <script>
+        let currentUser = null;
+
+        async function init() {
+            currentUser = await checkAuth('setter');
+            if (!currentUser) return;
+            document.getElementById('nav-user-name').textContent = currentUser.name;
+            // Set default exam time to 2 hours from now
+            const future = new Date(Date.now() + 2 * 3600 * 1000);
+            future.setSeconds(0, 0);
+            const offsetMs = future.getTimezoneOffset() * 60 * 1000;
+            document.getElementById('exam-start').value = new Date(future.getTime() - offsetMs).toISOString().slice(0, 16);
+            loadPapers();
+        }
+
+        function setSelectedFile(file) {
+            document.getElementById('file-info').style.display = 'block';
+            document.getElementById('file-name-display').textContent = file.name;
+            document.getElementById('file-size-display').textContent = formatFileSize(file.size / (1024 * 1024));
+            document.getElementById('upload-zone').style.borderColor = 'var(--success)';
+        }
+
+        function handleFileSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                input.value = '';
+                showToast('Only PDF files are allowed', 'warning');
+                return;
+            }
+            if (file.size > 50 * 1024 * 1024) {
+                input.value = '';
+                showToast('PDF exceeds 50 MB limit', 'warning');
+                return;
+            }
+            setSelectedFile(file);
+        }
+
+        async function handleUpload(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput.files[0]) {
+                showToast('Please select a PDF file', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('upload-btn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Encrypting & Uploading...';
+
+            // Show progress bar
+            const progressBar = document.getElementById('upload-progress');
+            const progressFill = document.getElementById('progress-fill');
+            progressBar.style.display = 'block';
+            
+            // Simulate progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + Math.random() * 15, 90);
+                progressFill.style.width = progress + '%';
+            }, 300);
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('subject', document.getElementById('subject').value);
+            formData.append('exam_start_time', document.getElementById('exam-start').value);
+            formData.append('duration', document.getElementById('duration').value);
+
+            try {
+                const res = await fetch('/api/papers/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+
+                if (res.ok) {
+                    showToast('Paper encrypted and scheduled!', 'success');
+                    // Show result
+                    document.getElementById('encryption-result').style.display = 'block';
+                    document.getElementById('result-paper-id').textContent = data.paper_id;
+                    document.getElementById('result-encryption').textContent = data.encryption;
+                    document.getElementById('result-key-shares').textContent = data.key_shares;
+                    document.getElementById('result-unlock-time').textContent = formatDateTime(data.unlock_time);
+                    document.getElementById('upload-form').reset();
+                    document.getElementById('file-info').style.display = 'none';
+                    document.getElementById('upload-zone').style.borderColor = '';
+                    const future = new Date(Date.now() + 2 * 3600 * 1000);
+                    future.setSeconds(0, 0);
+                    const offsetMs = future.getTimezoneOffset() * 60 * 1000;
+                    document.getElementById('exam-start').value = new Date(future.getTime() - offsetMs).toISOString().slice(0, 16);
+                    loadPapers();
+                } else {
+                    showToast(data.error || 'Upload failed', 'error');
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔒 Encrypt & Upload';
+            }
+        }
+
+        async function loadPapers() {
+            try {
+                const data = await apiFetch('/api/papers');
+                const papers = data.papers;
+                
+                document.getElementById('stat-papers').textContent = papers.length;
+                document.getElementById('stat-encrypted').textContent = papers.filter(p => p.encrypted).length;
+                document.getElementById('stat-scheduled').textContent = papers.filter(p => !p.is_unlocked && !p.is_expired).length;
+
+                const tbody = document.getElementById('papers-table-body');
+                if (papers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>';
+                    return;
+                }
+                tbody.innerHTML = papers.map(p => `
+                    <tr>
+                        <td><strong>${escapeHtml(p.subject)}</strong></td>
+                        <td style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(p.filename)}</td>
+                        <td>${formatFileSize(p.file_size_mb)}</td>
+                        <td>${p.encrypted ? '<span class="badge badge-success">🔒 AES-256</span>' : '<span class="badge badge-danger">Unencrypted</span>'}</td>
+                        <td>${formatDateTime(p.exam_start_time)}</td>
+                        <td>${formatDateTime(p.unlock_time)}</td>
+                        <td>${p.is_unlocked ? '<span class="badge badge-success">🔓 Unlocked</span>' : 
+                             p.is_expired ? '<span class="badge badge-warning">Expired</span>' : 
+                             '<span class="badge badge-info">⏱️ Locked</span>'}</td>
+                    </tr>
+                `).join('');
+            } catch (err) { /* handled by apiFetch */ }
+        }
+
+        // Drag and drop
+        const zone = document.getElementById('upload-zone');
+        if (zone) {
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (!files || !files.length) return;
+                const fileInput = document.getElementById('file-input');
+                fileInput.files = files;
+                handleFileSelect(fileInput);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
