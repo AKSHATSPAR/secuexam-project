@@ -22,75 +22,90 @@
     <!-- ========== LOGIN VIEW ========== -->
     <div id="login-view" class="login-container">
         <div class="glass-card login-card slide-up">
-            <div class="logo-large">🔐</div>
-            <h1 class="gradient-text">SecuExam</h1>
-            <p class="subtitle">Secure Exam Paper Distribution System</p>
-            <div class="chip-row" id="public-status-strip" style="justify-content: center; margin-bottom: 1.5rem;">
-                <span class="info-chip">Loading secure environment...</span>
-            </div>
-
-            <!-- Role Tabs -->
-            <div class="role-tabs" id="role-tabs">
-                <button class="role-tab active" data-role="setter" onclick="selectRole('setter')">📝 Setter</button>
-                <button class="role-tab" data-role="receiver" onclick="selectRole('receiver')">📥 Receiver</button>
-                <button class="role-tab" data-role="admin" onclick="selectRole('admin')">🛡️ Admin</button>
-            </div>
-
-            <form id="login-form" onsubmit="handleLogin(event)" novalidate autocomplete="off">
-                <div class="form-group">
-                    <label class="form-label" for="login-email">Email Address</label>
-                    <input class="form-input" type="email" id="login-email" placeholder="Enter your email" required autocomplete="off" autocapitalize="none" spellcheck="false">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="login-password">Password</label>
-                    <input class="form-input" type="password" id="login-password" placeholder="Enter your password" required autocomplete="off">
-                </div>
-                <button type="submit" class="btn btn-primary btn-lg" id="login-btn">
-                    <span id="login-btn-text">Sign In</span>
-                    <span id="login-spinner" class="spinner" style="display:none;"></span>
-                </button>
-            </form>
-
-            <div class="separator">or</div>
-
-            <p style="font-size: 0.85rem; color: var(--text-muted);">
-                Don't have an account? 
-                <button type="button" class="text-link" onclick="showRegister()">Register here</button>
-            </p>
-
-            <!-- Security Features -->
-            <div style="margin-top: 2rem;">
-                <div class="feature-grid" style="grid-template-columns: 1fr;">
-                    <div class="feature-card glass-card" style="padding: 0.75rem;">
-                        <div class="feature-icon" style="background: var(--accent-primary-glow); color: var(--accent-primary); width: 32px; height: 32px; font-size: 0.9rem;">🔒</div>
-                        <div>
-                            <h4 style="font-size: 0.8rem;">AES-256 + Shamir's Secret Sharing</h4>
-                            <p style="font-size: 0.7rem;">Military-grade encryption with split-key management</p>
+            <div class="login-split">
+                <div class="login-main-panel">
+                    <div class="login-overview-row">
+                        <div class="login-brand-block">
+                            <div class="logo-large">🔐</div>
+                            <h1 class="gradient-text">SecuExam</h1>
+                            <p class="subtitle">Secure Exam Paper Distribution System</p>
+                        </div>
+                        <div class="login-signal-stack">
+                            <div id="public-status-strip" class="status-grid">
+                                <div class="status-stat">
+                                    <span class="status-stat-label">Protection</span>
+                                    <div class="status-stat-value">Loading...</div>
+                                </div>
+                                <div class="status-stat">
+                                    <span class="status-stat-label">Mode</span>
+                                    <div class="status-stat-value">Secure boot</div>
+                                </div>
+                            </div>
+                            <div class="login-hero-note">
+                                <div class="eyebrow-text">Live Service Signal</div>
+                                <h3 style="font-size: 1rem; margin-bottom: 0.35rem;">Reviewer-ready exam command screen</h3>
+                                <p class="muted-copy" id="public-status-summary">
+                                    Pulling paper protection metrics from the active SecuExam deployment.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                    <div class="feature-card glass-card" style="padding: 0.75rem;">
-                        <div class="feature-icon" style="background: var(--success-bg); color: var(--success); width: 32px; height: 32px; font-size: 0.9rem;">⏱️</div>
-                        <div>
-                            <h4 style="font-size: 0.8rem;">Time-Lock Enforcement</h4>
-                            <p style="font-size: 0.7rem;">Papers accessible only 30 min before exam start</p>
-                        </div>
+
+                    <div class="role-tabs" id="role-tabs">
+                        <button class="role-tab active" data-role="setter" onclick="selectRole('setter')">📝 Setter</button>
+                        <button class="role-tab" data-role="receiver" onclick="selectRole('receiver')">📥 Receiver</button>
+                        <button class="role-tab" data-role="admin" onclick="selectRole('admin')">🛡️ Admin</button>
                     </div>
-                    <div class="feature-card glass-card" style="padding: 0.75rem;">
-                        <div class="feature-icon" style="background: var(--warning-bg); color: var(--warning); width: 32px; height: 32px; font-size: 0.9rem;">💧</div>
-                        <div>
-                            <h4 style="font-size: 0.8rem;">Dynamic Watermarking</h4>
-                            <p style="font-size: 0.7rem;">IP-traced footprint on every downloaded page</p>
+
+                    <form id="login-form" onsubmit="handleLogin(event)" novalidate autocomplete="off">
+                        <div class="form-group">
+                            <label class="form-label" for="login-email">Email Address</label>
+                            <input class="form-input" type="email" id="login-email" placeholder="Enter your email" required autocomplete="off" autocapitalize="none" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="login-password">Password</label>
+                            <input class="form-input" type="password" id="login-password" placeholder="Enter your password" required autocomplete="off">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg" id="login-btn">
+                            <span id="login-btn-text">Sign In</span>
+                            <span id="login-spinner" class="spinner" style="display:none;"></span>
+                        </button>
+                    </form>
+
+                    <div class="separator">or</div>
+
+                    <p style="font-size: 0.85rem; color: var(--text-muted);">
+                        Don't have an account? 
+                        <button type="button" class="text-link" onclick="showRegister()">Register here</button>
+                    </p>
+                </div>
+
+                <div class="login-side-panel">
+                    <div class="eyebrow-text" style="text-align:left; margin-bottom:0.75rem;">Security Controls</div>
+                    <div class="feature-grid login-feature-grid">
+                        <div class="feature-card glass-card" style="padding: 0.75rem;">
+                            <div class="feature-icon" style="background: var(--accent-primary-glow); color: var(--accent-primary); width: 32px; height: 32px; font-size: 0.9rem;">🔒</div>
+                            <div>
+                                <h4 style="font-size: 0.8rem;">AES-256 + Shamir's Secret Sharing</h4>
+                                <p style="font-size: 0.7rem;">Military-grade encryption with split-key management</p>
+                            </div>
+                        </div>
+                        <div class="feature-card glass-card" style="padding: 0.75rem;">
+                            <div class="feature-icon" style="background: var(--success-bg); color: var(--success); width: 32px; height: 32px; font-size: 0.9rem;">⏱️</div>
+                            <div>
+                                <h4 style="font-size: 0.8rem;">Time-Lock Enforcement</h4>
+                                <p style="font-size: 0.7rem;">Papers accessible only 30 min before exam start</p>
+                            </div>
+                        </div>
+                        <div class="feature-card glass-card" style="padding: 0.75rem;">
+                            <div class="feature-icon" style="background: var(--warning-bg); color: var(--warning); width: 32px; height: 32px; font-size: 0.9rem;">💧</div>
+                            <div>
+                                <h4 style="font-size: 0.8rem;">Dynamic Watermarking</h4>
+                                <p style="font-size: 0.7rem;">IP-traced footprint on every downloaded page</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="glass-card" style="margin-top: 1rem; text-align: left;">
-                <div class="eyebrow-text">Live Service Signal</div>
-                <h3 style="font-size: 1rem; margin-bottom: 0.35rem;">Demo environment is reviewer-ready</h3>
-                <p class="muted-copy" id="public-status-summary">
-                    Pulling paper protection metrics from the active SecuExam deployment.
-                </p>
             </div>
         </div>
     </div>
@@ -229,10 +244,22 @@
                 const strip = document.getElementById('public-status-strip');
                 const summary = document.getElementById('public-status-summary');
                 strip.innerHTML = `
-                    <span class="info-chip">🛡️ ${data.security_controls} active controls</span>
-                    <span class="info-chip">📄 ${data.papers_protected} protected papers</span>
-                    <span class="info-chip">🏫 ${data.active_centers} active center${data.active_centers === 1 ? '' : 's'}</span>
-                    <span class="info-chip">☁️ ${data.hosted_mode ? 'Hosted live' : 'Local secure mode'}</span>
+                    <div class="status-stat">
+                        <span class="status-stat-label">Controls</span>
+                        <div class="status-stat-value">${data.security_controls} active controls</div>
+                    </div>
+                    <div class="status-stat">
+                        <span class="status-stat-label">Protected papers</span>
+                        <div class="status-stat-value">${data.papers_protected} live records</div>
+                    </div>
+                    <div class="status-stat">
+                        <span class="status-stat-label">Centers</span>
+                        <div class="status-stat-value">${data.active_centers} active center${data.active_centers === 1 ? '' : 's'}</div>
+                    </div>
+                    <div class="status-stat">
+                        <span class="status-stat-label">Deployment</span>
+                        <div class="status-stat-value">${data.hosted_mode ? 'Hosted live' : 'Local secure mode'}</div>
+                    </div>
                 `;
                 summary.textContent = data.next_unlock_subject
                     ? `${data.next_unlock_subject} is the next scheduled unlock at ${formatDateTime(data.next_unlock_time)}.`
