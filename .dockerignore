@@ -5,6 +5,7 @@ venv
 __pycache__
 *.pyc
 *.pdf
+!test_exam_paper.pdf
 node_modules
 android
 report_assets
