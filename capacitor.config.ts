@@ -5,16 +5,14 @@ const config: CapacitorConfig = {
   appName: "SecuExam",
   webDir: "secuexam_app",
   server: {
-    url: "http://10.107.134.59:5050",
-    cleartext: true,
+    url: "https://secuexam-backend-production.up.railway.app",
+    cleartext: false,
     allowNavigation: [
-      "10.107.134.59",
-      "*.loca.lt",
-      "*.ngrok-free.app"
+      "secuexam-backend-production.up.railway.app"
     ]
   },
   android: {
-    allowMixedContent: true
+    allowMixedContent: false
   }
 };
 
