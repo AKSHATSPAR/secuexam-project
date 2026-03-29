@@ -1,4 +1,4 @@
-const STATIC_CACHE = "secuexam-static-v2";
+const STATIC_CACHE = "secuexam-static-v3";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
