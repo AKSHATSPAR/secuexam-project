@@ -149,41 +149,26 @@ def init_db():
         ON download_logs(receiver_id);
     """)
 
-    # Seed default admin if not exists
-    admin_exists = conn.execute(
-        "SELECT 1 FROM users WHERE role='admin' LIMIT 1"
-    ).fetchone()
-    if not admin_exists:
-        admin_id = str(uuid.uuid4())
-        pw_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
+    # Seed demo users atomically so multi-worker startup does not race on email uniqueness.
+    seed_users = [
+        ("admin@secuexam.in", "System Administrator", "admin", "", "admin123", 1),
+        ("setter@vit.ac.in", "Dr. Ramanujan", "setter", "", "setter123", 1),
+        ("receiver@vit.ac.in", "VIT Exam Center A", "receiver", "", "receiver123", 1),
+    ]
+    for email, name, role, college_code, password, approved in seed_users:
+        pw_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         conn.execute(
-            "INSERT INTO users (user_id, email, name, password_hash, role, approved) "
-            "VALUES (?, ?, ?, ?, 'admin', 1)",
-            (admin_id, "admin@secuexam.in", "System Administrator", pw_hash),
-        )
-    # Seed a demo setter
-    setter_exists = conn.execute(
-        "SELECT 1 FROM users WHERE role='setter' LIMIT 1"
-    ).fetchone()
-    if not setter_exists:
-        setter_id = str(uuid.uuid4())
-        pw_hash = bcrypt.hashpw("setter123".encode(), bcrypt.gensalt()).decode()
-        conn.execute(
-            "INSERT INTO users (user_id, email, name, password_hash, role, approved) "
-            "VALUES (?, ?, ?, ?, 'setter', 1)",
-            (setter_id, "setter@vit.ac.in", "Dr. Ramanujan", pw_hash),
-        )
-    # Seed a demo receiver
-    receiver_exists = conn.execute(
-        "SELECT 1 FROM users WHERE role='receiver' LIMIT 1"
-    ).fetchone()
-    if not receiver_exists:
-        receiver_id = str(uuid.uuid4())
-        pw_hash = bcrypt.hashpw("receiver123".encode(), bcrypt.gensalt()).decode()
-        conn.execute(
-            "INSERT INTO users (user_id, email, name, password_hash, role, approved) "
-            "VALUES (?, ?, ?, ?, 'receiver', 1)",
-            (receiver_id, "receiver@vit.ac.in", "VIT Exam Center A", pw_hash),
+            "INSERT OR IGNORE INTO users (user_id, email, name, password_hash, role, college_code, approved) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                email,
+                name,
+                pw_hash,
+                role,
+                college_code or None,
+                approved,
+            ),
         )
     conn.commit()
     conn.close()
