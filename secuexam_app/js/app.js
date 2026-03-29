@@ -221,3 +221,115 @@ function formatFileSize(mb) {
     if (mb < 1) return `${(mb * 1024).toFixed(0)} KB`;
     return `${mb.toFixed(2)} MB`;
 }
+
+function availabilityMeta(paper) {
+    if (paper.is_expired || paper.availability_state === 'expired') {
+        return {
+            label: 'Expired',
+            icon: '⏳',
+            badgeClass: 'badge-warning',
+            accentClass: 'danger'
+        };
+    }
+    if (paper.is_unlocked || paper.availability_state === 'available') {
+        return {
+            label: 'Available',
+            icon: '🔓',
+            badgeClass: 'badge-success',
+            accentClass: 'success'
+        };
+    }
+    return {
+        label: 'Time-Locked',
+        icon: '🔒',
+        badgeClass: 'badge-info',
+        accentClass: 'accent'
+    };
+}
+
+function classificationMeta(classification) {
+    const normalized = classification || 'Confidential';
+    if (normalized === 'Critical') {
+        return { label: 'Critical', badgeClass: 'badge-danger' };
+    }
+    if (normalized === 'Restricted') {
+        return { label: 'Restricted', badgeClass: 'badge-warning' };
+    }
+    return { label: 'Confidential', badgeClass: 'badge-accent' };
+}
+
+function renderAvailabilityBadge(paper) {
+    const meta = availabilityMeta(paper);
+    return `<span class="badge ${meta.badgeClass}">${meta.icon} ${meta.label}</span>`;
+}
+
+function renderClassificationBadge(classification) {
+    const meta = classificationMeta(classification);
+    return `<span class="badge ${meta.badgeClass}">${meta.label}</span>`;
+}
+
+function relativeTimeLabel(minutes) {
+    if (minutes === null || minutes === undefined || Number.isNaN(minutes)) return '—';
+    if (minutes <= 0) return 'Live now';
+    const totalMinutes = Math.abs(minutes);
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const mins = totalMinutes % 60;
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (mins || parts.length === 0) parts.push(`${mins}m`);
+    return `in ${parts.join(' ')}`;
+}
+
+function minutesUntil(isoStr) {
+    if (!isoStr) return null;
+    return Math.floor((new Date(isoStr) - new Date()) / 60000);
+}
+
+function sortPapersForOps(papers) {
+    return [...papers].sort((left, right) => {
+        const leftState = availabilityMeta(left);
+        const rightState = availabilityMeta(right);
+        const rank = { success: 0, accent: 1, danger: 2 };
+        if (rank[leftState.accentClass] !== rank[rightState.accentClass]) {
+            return rank[leftState.accentClass] - rank[rightState.accentClass];
+        }
+        return new Date(left.exam_start_time) - new Date(right.exam_start_time);
+    });
+}
+
+function findNextOperationalPaper(papers) {
+    return sortPapersForOps(
+        papers.filter(paper => !paper.is_expired)
+    )[0] || null;
+}
+
+function renderOpsPaperCard(paper, actionHtml = '') {
+    const state = availabilityMeta(paper);
+    const classification = classificationMeta(paper.classification);
+    const timeLabel = paper.is_unlocked
+        ? `Exam live until ${formatDateTime(paper.exam_end_time)}`
+        : `Unlocks ${relativeTimeLabel(paper.minutes_to_unlock)}`;
+    return `
+        <article class="ops-paper-card ${state.accentClass}">
+            <div class="ops-paper-head">
+                <div>
+                    <div class="eyebrow-text">Trace ${escapeHtml(paper.trace_id || '—')}</div>
+                    <h3>${escapeHtml(paper.subject)}</h3>
+                </div>
+                <div class="ops-paper-badges">
+                    <span class="badge ${classification.badgeClass}">${classification.label}</span>
+                    <span class="badge ${state.badgeClass}">${state.icon} ${state.label}</span>
+                </div>
+            </div>
+            <div class="ops-paper-meta">
+                <div><span class="meta-key">Setter</span><span class="meta-value">${escapeHtml(paper.setter_name || '—')}</span></div>
+                <div><span class="meta-key">Exam</span><span class="meta-value">${formatDateTime(paper.exam_start_time)}</span></div>
+                <div><span class="meta-key">Window</span><span class="meta-value">${timeLabel}</span></div>
+                <div><span class="meta-key">Fingerprint</span><span class="meta-value mono">${escapeHtml((paper.file_sha256_short || 'pending') || 'pending')}</span></div>
+            </div>
+            ${actionHtml ? `<div class="ops-paper-actions">${actionHtml}</div>` : ''}
+        </article>
+    `;
+}

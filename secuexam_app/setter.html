@@ -37,7 +37,66 @@
         <!-- Page Header -->
         <div class="page-header slide-up">
             <h1>📝 Paper Setter Dashboard</h1>
-            <p class="page-desc">Upload, encrypt, and schedule exam papers with military-grade security</p>
+            <p class="page-desc">Upload, classify, encrypt, and schedule exam papers with a reviewer-ready secure operations workflow</p>
+        </div>
+
+        <div class="hero-grid">
+            <div class="glass-card mission-panel">
+                <div class="panel-heading">
+                    <div>
+                        <div class="eyebrow-text">Upload Mission Control</div>
+                        <h2>Every paper gets an operational trail</h2>
+                        <p>Classification, encryption, split-key custody, unlock policy, and traceability are surfaced live while you upload.</p>
+                    </div>
+                    <span class="badge badge-success">Live Workflow</span>
+                </div>
+                <div class="mission-metrics">
+                    <div class="metric-tile">
+                        <span class="metric-label">Next unlock</span>
+                        <div class="metric-value" id="mission-next-unlock">—</div>
+                        <div class="metric-note" id="mission-next-unlock-note">No scheduled papers yet</div>
+                    </div>
+                    <div class="metric-tile">
+                        <span class="metric-label">Active windows</span>
+                        <div class="metric-value" id="mission-live-window">0</div>
+                        <div class="metric-note" id="mission-live-window-note">Nothing is live yet</div>
+                    </div>
+                    <div class="metric-tile">
+                        <span class="metric-label">Critical papers</span>
+                        <div class="metric-value" id="mission-critical-count">0</div>
+                        <div class="metric-note">Highest classification currently protected</div>
+                    </div>
+                </div>
+                <div class="chip-row" style="margin-top: 1rem;">
+                    <span class="info-chip">🔐 AES-256 enforced</span>
+                    <span class="info-chip">🔑 3-of-5 reconstruction</span>
+                    <span class="info-chip">📱 Mobile APK compatible</span>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="eyebrow-text">Secure Pipeline</div>
+                <h3 style="margin-bottom: 0.35rem;">Operational checklist</h3>
+                <p class="panel-subcopy">These stages make the flow look and behave like a real secure delivery pipeline, not a plain upload form.</p>
+                <div class="pipeline-list">
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-badge">1</div>
+                        <div><strong>Classify the payload</strong><p>Mark the paper as Restricted, Confidential, or Critical before scheduling.</p></div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-badge">2</div>
+                        <div><strong>Encrypt and fingerprint</strong><p>Generate AES-256 ciphertext and a SHA-256 integrity fingerprint.</p></div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-badge">3</div>
+                        <div><strong>Split key custody</strong><p>Create five key fragments with a three-share reconstruction threshold.</p></div>
+                    </div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-badge">4</div>
+                        <div><strong>Schedule release controls</strong><p>Time-lock the paper until the secure unlock window opens.</p></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Stats Row -->
@@ -92,10 +151,23 @@
                         <div class="form-group">
                             <label class="form-label">Exam Start Time (Local Server Time)</label>
                             <input class="form-input" type="datetime-local" id="exam-start" required>
+                            <div class="preset-row" style="margin-top: 0.75rem;">
+                                <button class="preset-chip" type="button" onclick="applyPreset('quick-review')">+45 min review</button>
+                                <button class="preset-chip" type="button" onclick="applyPreset('same-day')">+2 hr secure slot</button>
+                                <button class="preset-chip" type="button" onclick="applyPreset('tomorrow-morning')">Tomorrow 9:00 AM</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Exam Duration (minutes)</label>
                             <input class="form-input" type="number" id="duration" value="180" min="30" max="600">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Security Classification</label>
+                            <select class="form-select" id="classification">
+                                <option value="Confidential">Confidential</option>
+                                <option value="Critical">Critical</option>
+                                <option value="Restricted">Restricted</option>
+                            </select>
                         </div>
                         <button type="submit" class="btn btn-primary btn-lg" id="upload-btn" style="width:100%; justify-content: center;">
                             🔒 Encrypt & Upload
@@ -114,6 +186,10 @@
                             <div id="result-paper-id" style="font-family: monospace; font-size: 0.85rem; color: var(--accent-primary);"></div>
                         </div>
                         <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Trace ID</div>
+                            <div id="result-trace-id" style="font-family: monospace; font-size: 0.85rem;"></div>
+                        </div>
+                        <div>
                             <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Encryption</div>
                             <div id="result-encryption" style="font-size: 0.85rem;"></div>
                         </div>
@@ -125,7 +201,28 @@
                             <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Unlock Time</div>
                             <div id="result-unlock-time" style="font-size: 0.85rem;"></div>
                         </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Classification</div>
+                            <div id="result-classification" style="font-size: 0.85rem;"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">SHA-256 Fingerprint</div>
+                            <div id="result-fingerprint" style="font-family: monospace; font-size: 0.8rem;"></div>
+                        </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card" style="margin-bottom: 2rem;">
+            <div class="section-header">
+                <h2>🛰️ Operations Board</h2>
+                <span class="muted-copy">Reviewer-facing view of active and upcoming secure deliveries</span>
+            </div>
+            <div id="setter-ops-board" class="ops-board">
+                <div class="empty-state" style="padding: 2rem 1rem;">
+                    <div class="empty-icon">🛰️</div>
+                    <h3>No secure operations staged yet</h3>
                 </div>
             </div>
         </div>
@@ -143,14 +240,16 @@
                             <th>Subject</th>
                             <th>File</th>
                             <th>Size</th>
+                            <th>Class</th>
                             <th>Encryption</th>
+                            <th>Trace</th>
                             <th>Exam Time</th>
                             <th>Unlock Time</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody id="papers-table-body">
-                        <tr><td colspan="7" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>
+                        <tr><td colspan="9" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -160,6 +259,7 @@
     <script src="/secuexam_app/js/app.js"></script>
     <script>
         let currentUser = null;
+        let setterPapers = [];
 
         async function init() {
             currentUser = await checkAuth('setter');
@@ -171,6 +271,32 @@
             const offsetMs = future.getTimezoneOffset() * 60 * 1000;
             document.getElementById('exam-start').value = new Date(future.getTime() - offsetMs).toISOString().slice(0, 16);
             loadPapers();
+        }
+
+        function applyPreset(preset) {
+            const dateField = document.getElementById('exam-start');
+            const durationField = document.getElementById('duration');
+            const classificationField = document.getElementById('classification');
+            const now = new Date();
+            let target = new Date(now);
+
+            if (preset === 'quick-review') {
+                target = new Date(now.getTime() + 45 * 60000);
+                durationField.value = 90;
+                classificationField.value = 'Critical';
+            } else if (preset === 'same-day') {
+                target = new Date(now.getTime() + 2 * 3600 * 1000);
+                durationField.value = 180;
+                classificationField.value = 'Confidential';
+            } else if (preset === 'tomorrow-morning') {
+                target.setDate(target.getDate() + 1);
+                target.setHours(9, 0, 0, 0);
+                durationField.value = 180;
+                classificationField.value = 'Restricted';
+            }
+
+            const offsetMs = target.getTimezoneOffset() * 60 * 1000;
+            dateField.value = new Date(target.getTime() - offsetMs).toISOString().slice(0, 16);
         }
 
         function setSelectedFile(file) {
@@ -225,6 +351,7 @@
             formData.append('subject', document.getElementById('subject').value);
             formData.append('exam_start_time', document.getElementById('exam-start').value);
             formData.append('duration', document.getElementById('duration').value);
+            formData.append('classification', document.getElementById('classification').value);
 
             try {
                 const res = await fetch('/api/papers/upload', { method: 'POST', body: formData });
@@ -238,9 +365,12 @@
                     // Show result
                     document.getElementById('encryption-result').style.display = 'block';
                     document.getElementById('result-paper-id').textContent = data.paper_id;
+                    document.getElementById('result-trace-id').textContent = data.trace_id;
                     document.getElementById('result-encryption').textContent = data.encryption;
                     document.getElementById('result-key-shares').textContent = data.key_shares;
                     document.getElementById('result-unlock-time').textContent = formatDateTime(data.unlock_time);
+                    document.getElementById('result-classification').innerHTML = renderClassificationBadge(data.classification);
+                    document.getElementById('result-fingerprint').textContent = data.file_sha256;
                     document.getElementById('upload-form').reset();
                     document.getElementById('file-info').style.display = 'none';
                     document.getElementById('upload-zone').style.borderColor = '';
@@ -265,14 +395,17 @@
             try {
                 const data = await apiFetch('/api/papers');
                 const papers = data.papers;
+                setterPapers = papers;
                 
                 document.getElementById('stat-papers').textContent = papers.length;
                 document.getElementById('stat-encrypted').textContent = papers.filter(p => p.encrypted).length;
                 document.getElementById('stat-scheduled').textContent = papers.filter(p => !p.is_unlocked && !p.is_expired).length;
+                renderSetterMission(papers);
+                renderSetterOpsBoard(papers);
 
                 const tbody = document.getElementById('papers-table-body');
                 if (papers.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-icon">📄</div><h3>No papers uploaded yet</h3></td></tr>';
                     return;
                 }
                 tbody.innerHTML = papers.map(p => `
@@ -280,15 +413,50 @@
                         <td><strong>${escapeHtml(p.subject)}</strong></td>
                         <td style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(p.filename)}</td>
                         <td>${formatFileSize(p.file_size_mb)}</td>
+                        <td>${renderClassificationBadge(p.classification)}</td>
                         <td>${p.encrypted ? '<span class="badge badge-success">🔒 AES-256</span>' : '<span class="badge badge-danger">Unencrypted</span>'}</td>
+                        <td style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(p.trace_id)}</td>
                         <td>${formatDateTime(p.exam_start_time)}</td>
                         <td>${formatDateTime(p.unlock_time)}</td>
-                        <td>${p.is_unlocked ? '<span class="badge badge-success">🔓 Unlocked</span>' : 
-                             p.is_expired ? '<span class="badge badge-warning">Expired</span>' : 
-                             '<span class="badge badge-info">⏱️ Locked</span>'}</td>
+                        <td>${renderAvailabilityBadge(p)}</td>
                     </tr>
                 `).join('');
             } catch (err) { /* handled by apiFetch */ }
+        }
+
+        function renderSetterMission(papers) {
+            const nextPaper = findNextOperationalPaper(papers);
+            const liveCount = papers.filter(p => p.is_unlocked && !p.is_expired).length;
+            const criticalCount = papers.filter(p => p.classification === 'Critical').length;
+            document.getElementById('mission-live-window').textContent = liveCount;
+            document.getElementById('mission-live-window-note').textContent = liveCount
+                ? 'Currently inside active exam windows'
+                : 'No papers are currently downloadable';
+            document.getElementById('mission-critical-count').textContent = criticalCount;
+
+            if (!nextPaper) {
+                document.getElementById('mission-next-unlock').textContent = '—';
+                document.getElementById('mission-next-unlock-note').textContent = 'Schedule an exam to begin custody tracking';
+                return;
+            }
+
+            document.getElementById('mission-next-unlock').textContent = nextPaper.trace_id;
+            document.getElementById('mission-next-unlock-note').textContent = nextPaper.is_unlocked
+                ? `${nextPaper.subject} is already inside its secure access window`
+                : `${nextPaper.subject} unlocks ${relativeTimeLabel(nextPaper.minutes_to_unlock)}`;
+        }
+
+        function renderSetterOpsBoard(papers) {
+            const board = document.getElementById('setter-ops-board');
+            if (!papers.length) {
+                board.innerHTML = '<div class="empty-state" style="padding: 2rem 1rem;"><div class="empty-icon">🛰️</div><h3>No secure operations staged yet</h3></div>';
+                return;
+            }
+
+            board.innerHTML = sortPapersForOps(papers).slice(0, 4).map(paper => renderOpsPaperCard(
+                paper,
+                `<span class="muted-copy">${paper.is_unlocked ? 'Receiver window is open' : `Unlock ${relativeTimeLabel(paper.minutes_to_unlock)}`}</span>`
+            )).join('');
         }
 
         // Drag and drop

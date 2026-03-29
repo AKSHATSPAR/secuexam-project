@@ -3,6 +3,8 @@ SecuExam — Secure Exam Paper Distribution System
 Flask Backend Server
 """
 
+import csv
+import hashlib
 import os
 import json
 import uuid
@@ -10,7 +12,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
-from io import BytesIO
+from io import BytesIO, StringIO
 
 from flask import (
     Flask, request, jsonify, session, send_file,
@@ -31,6 +33,7 @@ app = Flask(
     template_folder="secuexam_app",
 )
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_STARTED_AT = datetime.now().replace(microsecond=0)
 PERSISTENT_DATA_DIR = (
     os.environ.get("SECUEXAM_DATA_DIR")
     or os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
@@ -110,6 +113,8 @@ def init_db():
         file_size_mb      REAL NOT NULL,
         encryption_status INTEGER DEFAULT 0,
         subject           TEXT,
+        classification    TEXT DEFAULT 'Confidential',
+        file_sha256       TEXT,
         created_at        TEXT DEFAULT (datetime('now'))
     );
 
@@ -149,6 +154,24 @@ def init_db():
         ON download_logs(receiver_id);
     """)
 
+    paper_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(exam_papers)").fetchall()
+    }
+    if "classification" not in paper_columns:
+        try:
+            conn.execute(
+                "ALTER TABLE exam_papers ADD COLUMN classification TEXT DEFAULT 'Confidential'"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+    if "file_sha256" not in paper_columns:
+        try:
+            conn.execute("ALTER TABLE exam_papers ADD COLUMN file_sha256 TEXT")
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+
     # Seed demo users atomically so multi-worker startup does not race on email uniqueness.
     seed_users = [
         ("admin@secuexam.in", "System Administrator", "admin", "", "admin123", 1),
@@ -174,12 +197,19 @@ def init_db():
     conn.close()
 
 
-init_db()
-
-
 def now_local():
     """Use a consistent naive local datetime for browser/server scheduling."""
     return datetime.now().replace(microsecond=0)
+
+
+def parse_db_datetime(value: str, field_name: str = "datetime") -> datetime:
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid {field_name}") from exc
 
 
 def parse_app_datetime(value: str, field_name: str = "datetime") -> datetime:
@@ -191,6 +221,22 @@ def parse_app_datetime(value: str, field_name: str = "datetime") -> datetime:
 
 def format_app_datetime(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds")
+
+
+def short_trace_id(paper_id: str) -> str:
+    return paper_id.replace("-", "").upper()[:10]
+
+
+def uptime_minutes() -> int:
+    return max(0, int((now_local() - APP_STARTED_AT).total_seconds() // 60))
+
+
+def classification_rank(label: str) -> int:
+    return {
+        "Restricted": 1,
+        "Confidential": 2,
+        "Critical": 3,
+    }.get(label or "Confidential", 2)
 
 
 def get_client_ip() -> str:
@@ -340,6 +386,115 @@ def add_watermark(pdf_bytes: bytes, watermark_text: str) -> bytes:
         return pdf_bytes  # Return original if watermarking fails
 
 
+def seed_demo_papers():
+    conn = get_db()
+    setter = conn.execute(
+        "SELECT user_id FROM users WHERE role = 'setter' ORDER BY created_at LIMIT 1"
+    ).fetchone()
+    if not setter:
+        conn.close()
+        return
+
+    schedule_rows = conn.execute(
+        "SELECT exam_start_time, duration_min FROM exam_schedule"
+    ).fetchall()
+    now = now_local()
+    has_active_or_upcoming = any(
+        parse_db_datetime(row["exam_start_time"], "demo seed exam time") + timedelta(minutes=row["duration_min"]) > now
+        for row in schedule_rows
+    )
+    if has_active_or_upcoming:
+        conn.close()
+        return
+
+    demo_pdf_path = os.path.join(BASE_DIR, "test_exam_paper.pdf")
+    if not os.path.exists(demo_pdf_path):
+        conn.close()
+        return
+
+    with open(demo_pdf_path, "rb") as pdf_file:
+        pdf_bytes = pdf_file.read()
+
+    if not pdf_bytes:
+        conn.close()
+        return
+
+    file_size_mb = round(len(pdf_bytes) / (1024 * 1024), 2)
+    file_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    demo_papers = [
+        {
+            "subject": "Secure Computing Midterm",
+            "classification": "Critical",
+            "exam_start": now + timedelta(minutes=20),
+            "duration": 150,
+        },
+        {
+            "subject": "Software Engineering Final Review",
+            "classification": "Confidential",
+            "exam_start": now + timedelta(hours=3, minutes=20),
+            "duration": 180,
+        },
+        {
+            "subject": "Digital Forensics Lab Evaluation",
+            "classification": "Restricted",
+            "exam_start": now + timedelta(days=1, hours=1),
+            "duration": 120,
+        },
+    ]
+
+    for demo in demo_papers:
+        aes_key = os.urandom(32)
+        iv, ciphertext = aes_encrypt(pdf_bytes, aes_key)
+        paper_id = str(uuid.uuid4())
+        enc_filename = f"{paper_id}.enc"
+        enc_path = os.path.join(app.config["UPLOAD_FOLDER"], enc_filename)
+        with open(enc_path, "wb") as enc_file:
+            enc_file.write(iv + ciphertext)
+
+        shares = shamir_split(aes_key, k=3, n=5)
+        unlock_dt = demo["exam_start"] - timedelta(minutes=30)
+
+        conn.execute(
+            "INSERT INTO exam_papers (paper_id, setter_id, original_filename, file_path, file_size_mb, "
+            "encryption_status, subject, classification, file_sha256) "
+            "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+            (
+                paper_id,
+                setter["user_id"],
+                "demo_exam_packet.pdf",
+                enc_path,
+                file_size_mb,
+                demo["subject"],
+                demo["classification"],
+                file_sha256,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO exam_schedule (schedule_id, paper_id, exam_start_time, duration_min, unlock_time) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                str(uuid.uuid4()),
+                paper_id,
+                format_app_datetime(demo["exam_start"]),
+                demo["duration"],
+                format_app_datetime(unlock_dt),
+            ),
+        )
+        for idx, share in enumerate(shares):
+            conn.execute(
+                "INSERT INTO encryption_keys (key_id, paper_id, key_fragment, fragment_idx, owner_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (str(uuid.uuid4()), paper_id, json.dumps(share), idx, setter["user_id"]),
+            )
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+seed_demo_papers()
+
+
 # ---------------------------------------------------------------------------
 # Auth decorator
 # ---------------------------------------------------------------------------
@@ -390,6 +545,38 @@ def service_worker():
 @app.route("/healthz")
 def healthz():
     return jsonify({"status": "ok", "time": format_app_datetime(now_local())})
+
+
+@app.route("/api/public/status")
+def api_public_status():
+    conn = get_db()
+    total_papers = conn.execute("SELECT COUNT(*) AS c FROM exam_papers").fetchone()["c"]
+    total_centers = conn.execute(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'receiver' AND approved = 1"
+    ).fetchone()["c"]
+    pending_approvals = conn.execute(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'receiver' AND approved = 0"
+    ).fetchone()["c"]
+    next_unlock = conn.execute("""
+        SELECT ep.subject, es.unlock_time
+        FROM exam_schedule es
+        JOIN exam_papers ep ON ep.paper_id = es.paper_id
+        WHERE es.unlock_time >= ?
+        ORDER BY es.unlock_time ASC
+        LIMIT 1
+    """, (format_app_datetime(now_local()),)).fetchone()
+    conn.close()
+
+    return jsonify({
+        "product": "SecuExam",
+        "security_controls": 6,
+        "papers_protected": total_papers,
+        "active_centers": total_centers,
+        "pending_approvals": pending_approvals,
+        "next_unlock_subject": next_unlock["subject"] if next_unlock else None,
+        "next_unlock_time": next_unlock["unlock_time"] if next_unlock else None,
+        "hosted_mode": HOSTED_ENV,
+    })
 
 
 @app.route("/downloads/secuexam-debug.apk")
@@ -557,6 +744,7 @@ def api_upload_paper():
 
     subject = request.form.get("subject", "General").strip()
     exam_start = request.form.get("exam_start_time", "").strip()
+    classification = request.form.get("classification", "Confidential").strip().title()
 
     try:
         duration = int(request.form.get("duration", 180))
@@ -569,6 +757,8 @@ def api_upload_paper():
         return jsonify({"error": "Subject / exam name is required"}), 400
     if duration < 30 or duration > 600:
         return jsonify({"error": "Exam duration must be between 30 and 600 minutes"}), 400
+    if classification not in ("Restricted", "Confidential", "Critical"):
+        return jsonify({"error": "Classification must be Restricted, Confidential, or Critical"}), 400
 
     try:
         exam_dt = parse_app_datetime(exam_start, "exam start time")
@@ -583,6 +773,7 @@ def api_upload_paper():
     if not file_bytes:
         return jsonify({"error": "Uploaded PDF is empty"}), 400
     file_size_mb = round(len(file_bytes) / (1024 * 1024), 2)
+    file_sha256 = hashlib.sha256(file_bytes).hexdigest()
     if file_size_mb > 50:
         return jsonify({"error": "File exceeds 50 MB limit"}), 400
 
@@ -606,9 +797,18 @@ def api_upload_paper():
 
     conn = get_db()
     conn.execute(
-        "INSERT INTO exam_papers (paper_id, setter_id, original_filename, file_path, file_size_mb, encryption_status, subject) "
-        "VALUES (?, ?, ?, ?, ?, 1, ?)",
-        (paper_id, session["user_id"], file.filename, enc_path, file_size_mb, subject),
+        "INSERT INTO exam_papers (paper_id, setter_id, original_filename, file_path, file_size_mb, encryption_status, subject, classification, file_sha256) "
+        "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+        (
+            paper_id,
+            session["user_id"],
+            file.filename,
+            enc_path,
+            file_size_mb,
+            subject,
+            classification,
+            file_sha256,
+        ),
     )
     conn.execute(
         "INSERT INTO exam_schedule (schedule_id, paper_id, exam_start_time, duration_min, unlock_time) "
@@ -632,6 +832,10 @@ def api_upload_paper():
         "encryption": "AES-256-CBC",
         "key_shares": f"5 shares created (3 required to reconstruct)",
         "unlock_time": format_app_datetime(unlock_dt),
+        "classification": classification,
+        "trace_id": short_trace_id(paper_id),
+        "file_sha256": file_sha256,
+        "exam_start_time": format_app_datetime(exam_dt),
     }), 201
 
 
@@ -645,6 +849,7 @@ def api_list_papers():
     rows = conn.execute("""
         SELECT ep.paper_id, ep.original_filename, ep.file_size_mb, ep.subject,
                ep.encryption_status, ep.created_at,
+               ep.classification, ep.file_sha256,
                es.exam_start_time, es.duration_min, es.unlock_time,
                u.name as setter_name,
                (SELECT COUNT(*) FROM encryption_keys ek WHERE ek.paper_id = ep.paper_id) AS key_share_count
@@ -658,25 +863,43 @@ def api_list_papers():
     now = now_local()
     papers = []
     for r in rows:
-        unlock_dt = parse_app_datetime(r["unlock_time"], "unlock time")
-        exam_dt = parse_app_datetime(r["exam_start_time"], "exam start time")
+        unlock_dt = parse_db_datetime(r["unlock_time"], "unlock time")
+        exam_dt = parse_db_datetime(r["exam_start_time"], "exam start time")
+        exam_end_dt = exam_dt + timedelta(minutes=r["duration_min"])
         is_unlocked = now >= unlock_dt
-        is_expired = now > exam_dt + timedelta(minutes=r["duration_min"])
+        is_expired = now > exam_end_dt
+        minutes_to_unlock = int((unlock_dt - now).total_seconds() // 60)
+        minutes_to_exam = int((exam_dt - now).total_seconds() // 60)
+        availability_state = (
+            "expired"
+            if is_expired
+            else "available"
+            if is_unlocked
+            else "locked"
+        )
         papers.append({
             "paper_id": r["paper_id"],
             "filename": r["original_filename"],
             "file_size_mb": r["file_size_mb"],
             "subject": r["subject"],
             "encrypted": bool(r["encryption_status"]),
+            "classification": r["classification"] or "Confidential",
+            "file_sha256": r["file_sha256"],
+            "file_sha256_short": (r["file_sha256"] or "")[:12],
             "setter_name": r["setter_name"],
             "exam_start_time": r["exam_start_time"],
             "duration_min": r["duration_min"],
             "unlock_time": r["unlock_time"],
+            "exam_end_time": format_app_datetime(exam_end_dt),
             "is_unlocked": is_unlocked,
             "is_expired": is_expired,
+            "availability_state": availability_state,
+            "minutes_to_unlock": minutes_to_unlock,
+            "minutes_to_exam": minutes_to_exam,
             "created_at": r["created_at"],
             "key_share_count": r["key_share_count"],
             "key_threshold": 3,
+            "trace_id": short_trace_id(r["paper_id"]),
         })
     return jsonify({"papers": papers})
 
@@ -699,8 +922,8 @@ def api_download_paper(paper_id):
 
     # Time-lock check
     now = now_local()
-    unlock_dt = parse_app_datetime(schedule["unlock_time"], "unlock time")
-    exam_dt = parse_app_datetime(schedule["exam_start_time"], "exam start time")
+    unlock_dt = parse_db_datetime(schedule["unlock_time"], "unlock time")
+    exam_dt = parse_db_datetime(schedule["exam_start_time"], "exam start time")
     exam_end_dt = exam_dt + timedelta(minutes=schedule["duration_min"])
     if now < unlock_dt:
         remaining = (unlock_dt - now).total_seconds()
@@ -754,24 +977,31 @@ def api_download_paper(paper_id):
     watermarked_pdf = add_watermark(decrypted_pdf, watermark)
 
     # Log successful download
-    _log_access(conn, paper_id, "success", f"Downloaded by {session['name']} from {client_ip}")
+    audit_log_id = _log_access(conn, paper_id, "success", f"Downloaded by {session['name']} from {client_ip}")
     conn.close()
 
-    return send_file(
+    response = send_file(
         BytesIO(watermarked_pdf),
         mimetype="application/pdf",
         as_attachment=True,
         download_name=f"SECUEXAM_{paper['original_filename']}",
     )
+    response.headers["X-SecuExam-Trace-Id"] = short_trace_id(paper_id)
+    response.headers["X-SecuExam-Audit-Id"] = audit_log_id
+    response.headers["X-SecuExam-Classification"] = paper["classification"] or "Confidential"
+    response.headers["X-SecuExam-Watermark"] = f"{session['name']}|{client_ip}|{timestamp}"
+    return response
 
 
 def _log_access(conn, paper_id, status, details=""):
+    log_id = str(uuid.uuid4())
     conn.execute(
         "INSERT INTO download_logs (log_id, paper_id, receiver_id, ip_address, status, details) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (str(uuid.uuid4()), paper_id, session.get("user_id"), get_client_ip(), status, details),
+        (log_id, paper_id, session.get("user_id"), get_client_ip(), status, details),
     )
     conn.commit()
+    return log_id
 
 
 # ---------------------------------------------------------------------------
@@ -880,6 +1110,42 @@ def api_admin_logs():
     return jsonify({"logs": [dict(r) for r in rows]})
 
 
+@app.route("/api/admin/logs/export", methods=["GET"])
+@login_required(roles=["admin"])
+def api_admin_logs_export():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT dl.access_timestamp, COALESCE(u.name, '—') AS receiver_name,
+               COALESCE(u.email, '—') AS receiver_email,
+               COALESCE(ep.subject, '—') AS subject,
+               COALESCE(ep.original_filename, '—') AS filename,
+               COALESCE(dl.ip_address, '—') AS ip_address,
+               COALESCE(dl.status, '—') AS status,
+               COALESCE(dl.details, '—') AS details
+        FROM download_logs dl
+        LEFT JOIN users u ON dl.receiver_id = u.user_id
+        LEFT JOIN exam_papers ep ON dl.paper_id = ep.paper_id
+        ORDER BY dl.access_timestamp DESC
+    """).fetchall()
+    conn.close()
+
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([
+        "Timestamp", "Receiver Name", "Receiver Email", "Subject",
+        "Filename", "IP Address", "Status", "Details"
+    ])
+    for row in rows:
+        writer.writerow([row[key] for key in row.keys()])
+    output = BytesIO(buffer.getvalue().encode("utf-8"))
+    return send_file(
+        output,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="secuexam_audit_logs.csv",
+    )
+
+
 @app.route("/api/admin/stats", methods=["GET"])
 @login_required(roles=["admin"])
 def api_admin_stats():
@@ -889,6 +1155,36 @@ def api_admin_stats():
     total_downloads = conn.execute("SELECT COUNT(*) as c FROM download_logs WHERE status='success'").fetchone()["c"]
     blocked_attempts = conn.execute("SELECT COUNT(*) as c FROM download_logs WHERE status='time_locked'").fetchone()["c"]
     failed_attempts = conn.execute("SELECT COUNT(*) as c FROM download_logs WHERE status='failed'").fetchone()["c"]
+    pending_approvals = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE role='receiver' AND approved=0"
+    ).fetchone()["c"]
+    active_centers = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE role='receiver' AND approved=1"
+    ).fetchone()["c"]
+    next_unlocks = conn.execute("""
+        SELECT ep.paper_id, ep.subject, ep.classification, es.unlock_time, es.exam_start_time
+        FROM exam_schedule es
+        JOIN exam_papers ep ON ep.paper_id = es.paper_id
+        WHERE es.unlock_time >= ?
+        ORDER BY es.unlock_time ASC
+        LIMIT 5
+    """, (format_app_datetime(now_local()),)).fetchall()
+    recent_uploads = conn.execute("""
+        SELECT ep.paper_id, ep.subject, ep.classification, ep.created_at, u.name AS setter_name
+        FROM exam_papers ep
+        JOIN users u ON ep.setter_id = u.user_id
+        ORDER BY ep.created_at DESC
+        LIMIT 5
+    """).fetchall()
+    recent_logs_rows = conn.execute("""
+        SELECT dl.access_timestamp, dl.status, dl.details, COALESCE(u.name, 'Unknown user') AS actor_name,
+               COALESCE(ep.subject, 'Unknown paper') AS subject
+        FROM download_logs dl
+        LEFT JOIN users u ON dl.receiver_id = u.user_id
+        LEFT JOIN exam_papers ep ON dl.paper_id = ep.paper_id
+        ORDER BY dl.access_timestamp DESC
+        LIMIT 8
+    """).fetchall()
     users_by_role = conn.execute("SELECT role, COUNT(*) as c FROM users GROUP BY role").fetchall()
     recent_logs = conn.execute("""
         SELECT dl.status, COUNT(*) as c
@@ -897,14 +1193,56 @@ def api_admin_stats():
     """).fetchall()
     conn.close()
 
+    total_attempts = total_downloads + blocked_attempts + failed_attempts
+    success_rate = round((total_downloads / total_attempts) * 100, 1) if total_attempts else 100.0
+    posture_score = max(
+        62,
+        100 - (pending_approvals * 6) - (blocked_attempts * 2) - (failed_attempts * 4)
+    )
+    posture_label = (
+        "Hardened" if posture_score >= 90 else
+        "Stable" if posture_score >= 80 else
+        "Monitor"
+    )
+    recent_activity = []
+    for row in recent_uploads:
+        recent_activity.append({
+            "timestamp": row["created_at"],
+            "type": "upload",
+            "title": row["subject"],
+            "subtitle": f"Uploaded by {row['setter_name']}",
+            "severity": row["classification"] or "Confidential",
+        })
+    for row in recent_logs_rows:
+        recent_activity.append({
+            "timestamp": row["access_timestamp"],
+            "type": "audit",
+            "title": f"{row['status'].replace('_', ' ').title()} access",
+            "subtitle": f"{row['actor_name']} • {row['subject']}",
+            "severity": row["status"],
+        })
+    recent_activity.sort(
+        key=lambda item: parse_db_datetime(item["timestamp"], "activity timestamp"),
+        reverse=True,
+    )
+
     return jsonify({
         "total_users": total_users,
         "total_papers": total_papers,
         "total_downloads": total_downloads,
         "blocked_attempts": blocked_attempts,
         "failed_attempts": failed_attempts,
+        "pending_approvals": pending_approvals,
+        "active_centers": active_centers,
+        "success_rate": success_rate,
+        "posture_score": posture_score,
+        "posture_label": posture_label,
+        "hosted_mode": HOSTED_ENV,
+        "uptime_minutes": uptime_minutes(),
         "users_by_role": {r["role"]: r["c"] for r in users_by_role},
         "access_by_status": {r["status"]: r["c"] for r in recent_logs},
+        "upcoming_unlocks": [dict(r) for r in next_unlocks],
+        "recent_activity": recent_activity[:8],
     })
 
 

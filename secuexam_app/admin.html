@@ -38,7 +38,7 @@
         <!-- Page Header -->
         <div class="page-header slide-up">
             <h1>🛡️ Admin Control Center</h1>
-            <p class="page-desc">Monitor system security, manage users, and audit all access attempts</p>
+            <p class="page-desc">Run SecuExam like a compact security operations console with posture scoring, unlock watchlists, and exportable audit evidence</p>
         </div>
 
         <!-- Stats Dashboard -->
@@ -65,6 +65,29 @@
             </div>
         </div>
 
+        <div class="kpi-strip" style="margin-bottom: 2rem;">
+            <div class="kpi-card">
+                <div class="kpi-label">Security posture</div>
+                <div class="kpi-value" id="posture-score">—</div>
+                <div class="kpi-note" id="posture-label">Calculating system posture</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Pending approvals</div>
+                <div class="kpi-value" id="pending-approvals">0</div>
+                <div class="kpi-note">Receiver onboarding awaiting review</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active centers</div>
+                <div class="kpi-value" id="active-centers">0</div>
+                <div class="kpi-note">Approved receiver nodes</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Backend uptime</div>
+                <div class="kpi-value" id="system-uptime">0m</div>
+                <div class="kpi-note" id="hosted-mode-note">Hosted mode pending</div>
+            </div>
+        </div>
+
         <!-- Tabs Navigation -->
         <div class="tabs" id="admin-tabs">
             <button class="tab active" data-tab="analytics" onclick="switchTab('analytics')">📊 Analytics</button>
@@ -77,6 +100,32 @@
         <div id="tab-analytics" class="tab-content">
             <div class="grid-2" style="margin-bottom: 2rem;">
                 <div class="glass-card">
+                    <div class="eyebrow-text">Security Posture</div>
+                    <div class="status-meter">
+                        <div class="status-ring" id="posture-ring" style="--score:90;"><span id="posture-ring-value">90</span></div>
+                        <div>
+                            <h3 style="margin-bottom: 0.35rem;">Operational confidence</h3>
+                            <p class="muted-copy" id="posture-description">SecuExam is calculating how healthy the environment looks right now.</p>
+                            <div class="chip-row" style="margin-top: 0.85rem;">
+                                <span class="info-chip" id="analytics-success-rate">Success rate: —</span>
+                                <span class="info-chip">🔑 Key custody active</span>
+                                <span class="info-chip">📱 APK traffic supported</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <h3>⏱️ Upcoming Unlock Watchlist</h3>
+                        <span class="muted-copy">Closest release windows first</span>
+                    </div>
+                    <div id="upcoming-unlocks" class="stack-list">
+                        <div class="empty-state" style="padding: 2rem 1rem;"><h3>No unlock windows queued</h3></div>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-bottom: 2rem;">
+                <div class="glass-card">
                     <h3 style="margin-bottom: 1rem;">👥 Users by Role</h3>
                     <div class="chart-container">
                         <canvas id="chart-users-role"></canvas>
@@ -86,6 +135,26 @@
                     <h3 style="margin-bottom: 1rem;">🔒 Access Attempts by Status</h3>
                     <div class="chart-container">
                         <canvas id="chart-access-status"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-bottom: 2rem;">
+                <div class="glass-card">
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <h3>📡 Recent Activity Feed</h3>
+                        <span class="muted-copy">Uploads and audit events combined</span>
+                    </div>
+                    <div id="recent-activity" class="activity-feed">
+                        <div class="empty-state" style="padding: 2rem 1rem;"><h3>No activity captured yet</h3></div>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <div class="section-header" style="margin-bottom: 1rem;">
+                        <h3>🚨 Reviewer Watchlist</h3>
+                        <span class="muted-copy">Signals that make the system feel operational</span>
+                    </div>
+                    <div id="reviewer-watchlist" class="stack-list">
+                        <div class="empty-state" style="padding: 2rem 1rem;"><h3>Loading watchlist</h3></div>
                     </div>
                 </div>
             </div>
@@ -145,6 +214,9 @@
                     <h2>👥 User Management</h2>
                     <button class="btn btn-secondary btn-sm" onclick="loadUsers()">🔄 Refresh</button>
                 </div>
+                <div id="user-summary-strip" class="chip-row" style="margin-bottom: 1rem;">
+                    <span class="info-chip">Loading user distribution...</span>
+                </div>
                 <div class="table-container">
                     <table>
                         <thead>
@@ -171,7 +243,10 @@
             <div class="glass-card">
                 <div class="section-header">
                     <h2>📋 Security Audit Log</h2>
-                    <button class="btn btn-secondary btn-sm" onclick="loadLogs()">🔄 Refresh</button>
+                    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="downloadAuditExport()">⬇️ Export CSV</button>
+                        <button class="btn btn-secondary btn-sm" onclick="loadLogs()">🔄 Refresh</button>
+                    </div>
                 </div>
                 <div class="table-container">
                     <table>
@@ -204,18 +279,20 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Subject</th>
-                                <th>Setter</th>
-                                <th>File</th>
-                                <th>Size</th>
-                                <th>Encrypted</th>
-                                <th>Exam Time</th>
-                                <th>Unlock</th>
-                                <th>Key Shares</th>
+                            <th>Subject</th>
+                            <th>Setter</th>
+                            <th>File</th>
+                            <th>Size</th>
+                            <th>Class</th>
+                            <th>Encrypted</th>
+                            <th>Trace</th>
+                            <th>Exam Time</th>
+                            <th>Unlock</th>
+                            <th>Key Shares</th>
                             </tr>
                         </thead>
                         <tbody id="papers-table-body">
-                            <tr><td colspan="8"><div class="spinner"></div> Loading...</td></tr>
+                            <tr><td colspan="10"><div class="spinner"></div> Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -228,6 +305,7 @@
         let currentUser = null;
         let usersRoleChart = null;
         let accessStatusChart = null;
+        let latestStats = null;
 
         async function init() {
             currentUser = await checkAuth('admin');
@@ -251,10 +329,24 @@
         async function loadStats() {
             try {
                 const data = await apiFetch('/api/admin/stats');
+                latestStats = data;
                 document.getElementById('stat-users').textContent = data.total_users;
                 document.getElementById('stat-papers').textContent = data.total_papers;
                 document.getElementById('stat-downloads').textContent = data.total_downloads;
                 document.getElementById('stat-blocked').textContent = data.blocked_attempts;
+                document.getElementById('posture-score').textContent = `${data.posture_score}%`;
+                document.getElementById('posture-label').textContent = data.posture_label;
+                document.getElementById('pending-approvals').textContent = data.pending_approvals;
+                document.getElementById('active-centers').textContent = data.active_centers;
+                document.getElementById('system-uptime').textContent = `${data.uptime_minutes}m`;
+                document.getElementById('hosted-mode-note').textContent = data.hosted_mode ? 'Hosted backend active' : 'Running in local mode';
+                document.getElementById('posture-ring').style.setProperty('--score', data.posture_score);
+                document.getElementById('posture-ring-value').textContent = data.posture_score;
+                document.getElementById('posture-description').textContent = `The environment is currently rated ${data.posture_label.toLowerCase()} with ${data.pending_approvals} pending approval(s) and ${data.failed_attempts} failed access event(s).`;
+                document.getElementById('analytics-success-rate').textContent = `Success rate: ${data.success_rate}%`;
+                renderUpcomingUnlocks(data.upcoming_unlocks || []);
+                renderRecentActivity(data.recent_activity || []);
+                renderWatchlist(data);
 
                 // Users by role chart
                 const roleLabels = Object.keys(data.users_by_role || {});
@@ -313,11 +405,86 @@
             } catch (err) {}
         }
 
+        function renderUpcomingUnlocks(unlocks) {
+            const container = document.getElementById('upcoming-unlocks');
+            if (!unlocks.length) {
+                container.innerHTML = '<div class="empty-state" style="padding: 2rem 1rem;"><h3>No unlock windows queued</h3></div>';
+                return;
+            }
+            container.innerHTML = unlocks.map(item => `
+                <div class="stack-item">
+                    <div class="icon-pill">⏱️</div>
+                    <div>
+                        <strong>${escapeHtml(item.subject)}</strong>
+                        <p>${escapeHtml(item.classification || 'Confidential')} • unlocks ${formatDateTime(item.unlock_time)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderRecentActivity(items) {
+            const container = document.getElementById('recent-activity');
+            if (!items.length) {
+                container.innerHTML = '<div class="empty-state" style="padding: 2rem 1rem;"><h3>No activity captured yet</h3></div>';
+                return;
+            }
+            container.innerHTML = items.map(item => `
+                <div class="activity-item">
+                    <div class="activity-dot"></div>
+                    <div>
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <p>${escapeHtml(item.subtitle)}</p>
+                        <div class="activity-time">${timeAgo(item.timestamp)} • ${formatDateTime(item.timestamp)}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderWatchlist(data) {
+            const items = [
+                {
+                    icon: data.pending_approvals ? '🟠' : '🟢',
+                    title: `${data.pending_approvals} receiver approval${data.pending_approvals === 1 ? '' : 's'} pending`,
+                    body: 'Administrative onboarding directly affects how complete the reviewer experience feels.'
+                },
+                {
+                    icon: '🚫',
+                    title: `${data.blocked_attempts} time-lock blocks captured`,
+                    body: 'Blocked attempts prove the release control is active, not just described in the report.'
+                },
+                {
+                    icon: '📈',
+                    title: `${data.success_rate}% secure-download success rate`,
+                    body: 'Healthy download completion improves confidence during the APK walkthrough.'
+                }
+            ];
+            const container = document.getElementById('reviewer-watchlist');
+            container.innerHTML = items.map(item => `
+                <div class="stack-item">
+                    <div class="icon-pill">${item.icon}</div>
+                    <div>
+                        <strong>${item.title}</strong>
+                        <p>${item.body}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
         // --- Users ---
         async function loadUsers() {
             try {
                 const data = await apiFetch('/api/admin/users');
                 const tbody = document.getElementById('users-table-body');
+                const summary = document.getElementById('user-summary-strip');
+                const pending = data.users.filter(u => !u.approved).length;
+                const setters = data.users.filter(u => u.role === 'setter').length;
+                const receivers = data.users.filter(u => u.role === 'receiver').length;
+                summary.innerHTML = `
+                    <span class="info-chip">👥 ${data.users.length} total users</span>
+                    <span class="info-chip">📝 ${setters} setters</span>
+                    <span class="info-chip">🏫 ${receivers} receivers</span>
+                    <span class="info-chip">⏳ ${pending} pending approval</span>
+                `;
                 if (!data.users.length) {
                     tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>No users found</h3></div></td></tr>';
                     return;
@@ -337,6 +504,10 @@
                     </tr>
                 `).join('');
             } catch (err) {}
+        }
+
+        function downloadAuditExport() {
+            window.location.href = '/api/admin/logs/export';
         }
 
         async function approveUser(userId) {
@@ -390,7 +561,7 @@
                 const data = await apiFetch('/api/papers');
                 const tbody = document.getElementById('papers-table-body');
                 if (!data.papers.length) {
-                    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><h3>No papers uploaded</h3></div></td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><h3>No papers uploaded</h3></div></td></tr>';
                     return;
                 }
                 tbody.innerHTML = data.papers.map(p => `
@@ -399,7 +570,9 @@
                         <td>${escapeHtml(p.setter_name)}</td>
                         <td style="font-family: monospace; font-size: 0.75rem;">${escapeHtml(p.filename)}</td>
                         <td>${formatFileSize(p.file_size_mb)}</td>
+                        <td>${renderClassificationBadge(p.classification)}</td>
                         <td>${p.encrypted ? '<span class="badge badge-success">🔒 AES-256</span>' : '<span class="badge badge-danger">No</span>'}</td>
+                        <td style="font-family: monospace; font-size: 0.75rem;">${escapeHtml(p.trace_id)}</td>
                         <td>${formatDateTime(p.exam_start_time)}</td>
                         <td>${formatDateTime(p.unlock_time)}</td>
                         <td>

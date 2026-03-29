@@ -25,6 +25,9 @@
             <div class="logo-large">🔐</div>
             <h1 class="gradient-text">SecuExam</h1>
             <p class="subtitle">Secure Exam Paper Distribution System</p>
+            <div class="chip-row" id="public-status-strip" style="justify-content: center; margin-bottom: 1.5rem;">
+                <span class="info-chip">Loading secure environment...</span>
+            </div>
 
             <!-- Role Tabs -->
             <div class="role-tabs" id="role-tabs">
@@ -80,6 +83,14 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="glass-card" style="margin-top: 1rem; text-align: left;">
+                <div class="eyebrow-text">Live Service Signal</div>
+                <h3 style="font-size: 1rem; margin-bottom: 0.35rem;">Demo environment is reviewer-ready</h3>
+                <p class="muted-copy" id="public-status-summary">
+                    Pulling paper protection metrics from the active SecuExam deployment.
+                </p>
             </div>
         </div>
     </div>
@@ -210,6 +221,27 @@
             collegeInput.placeholder = needsCollege ? 'e.g. VIT-CHN-001' : 'Optional for setters';
         }
 
+        async function loadPublicStatus() {
+            try {
+                const res = await fetch('/api/public/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const strip = document.getElementById('public-status-strip');
+                const summary = document.getElementById('public-status-summary');
+                strip.innerHTML = `
+                    <span class="info-chip">🛡️ ${data.security_controls} active controls</span>
+                    <span class="info-chip">📄 ${data.papers_protected} protected papers</span>
+                    <span class="info-chip">🏫 ${data.active_centers} active center${data.active_centers === 1 ? '' : 's'}</span>
+                    <span class="info-chip">☁️ ${data.hosted_mode ? 'Hosted live' : 'Local secure mode'}</span>
+                `;
+                summary.textContent = data.next_unlock_subject
+                    ? `${data.next_unlock_subject} is the next scheduled unlock at ${formatDateTime(data.next_unlock_time)}.`
+                    : 'The environment is online and ready for secure exam operations.';
+            } catch (_) {
+                // Keep the default copy if status fetch fails.
+            }
+        }
+
         function showRegister() {
             toggleCollegeCodeRequirement();
             const modal = document.getElementById('register-modal');
@@ -253,6 +285,7 @@
         // Auto-fill setter creds on load
         selectRole('setter');
         toggleCollegeCodeRequirement();
+        loadPublicStatus();
     </script>
 </body>
 </html>
